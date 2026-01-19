@@ -1,18 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, Dimensions, KeyboardAvoidingView, Platform, InteractionManager, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Plus, Book, Trash2, X } from 'lucide-react-native';
+import { ArrowLeft, Plus, Book, Trash2, X, Check } from 'lucide-react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { theme } from '../theme/theme';
 import { SubjectService } from '../services/SubjectService';
 import { useUserStore } from '../store/userStore';
 import { Subject } from '../types';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ScreenGradient } from '../components/ui/ScreenGradient';
 import { SubjectBook } from '../components/SubjectBook';
 import { Skeleton } from '../components/ui/Skeleton';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+const BOOK_COLORS = [
+    '#EF4444', // Red
+    '#F97316', // Orange
+    '#F59E0B', // Amber
+    '#84CC16', // Lime
+    '#10B981', // Emerald
+    '#06B6D4', // Cyan
+    '#3B82F6', // Blue
+    '#6366F1', // Indigo
+    '#8B5CF6', // Violet
+    '#EC4899'  // Pink
+];
 
 export const SubjectsScreen = () => {
     const navigation = useNavigation<any>();
@@ -22,6 +36,7 @@ export const SubjectsScreen = () => {
     const [loading, setLoading] = useState(true);
     const [isModalVisible, setModalVisible] = useState(false);
     const [newSubjectName, setNewSubjectName] = useState('');
+    const [selectedColor, setSelectedColor] = useState(BOOK_COLORS[0]);
     const [isReady, setIsReady] = useState(false); // New state for interactions
 
     const fetchSubjects = async () => {
@@ -52,12 +67,9 @@ export const SubjectsScreen = () => {
     const handleAddSubject = async () => {
         if (!newSubjectName.trim() || !user) return;
         try {
-            // Assign a random color for now - SubjectBook handles palette automatically if not strict
-            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD'];
-            const color = colors[Math.floor(Math.random() * colors.length)];
-
-            await SubjectService.addSubject(user.uid, newSubjectName, color);
+            await SubjectService.addSubject(user.uid, newSubjectName, selectedColor);
             setNewSubjectName('');
+            setSelectedColor(BOOK_COLORS[0]); // Reset color
             setModalVisible(false);
             fetchSubjects();
         } catch (error) {
@@ -138,10 +150,7 @@ export const SubjectsScreen = () => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <LinearGradient
-                colors={['#F8FAFC', '#F1F5F9']}
-                style={StyleSheet.absoluteFill}
-            />
+            <ScreenGradient />
 
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -192,6 +201,23 @@ export const SubjectsScreen = () => {
                                 placeholderTextColor="#94A3B8"
                             />
 
+                            <Text style={styles.inputLabel}>Book Color</Text>
+                            <View style={styles.colorGrid}>
+                                {BOOK_COLORS.map((color) => (
+                                    <TouchableOpacity
+                                        key={color}
+                                        style={[
+                                            styles.colorCircle,
+                                            { backgroundColor: color },
+                                            selectedColor === color && styles.colorCircleSelected
+                                        ]}
+                                        onPress={() => setSelectedColor(color)}
+                                    >
+                                        {selectedColor === color && <Check size={16} color="white" strokeWidth={3} />}
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
                             <View style={styles.modalButtons}>
                                 <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.cancelBtn}>
                                     <Text style={styles.btnTextSecondary}>Cancel</Text>
@@ -215,7 +241,10 @@ export const SubjectsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F8FAFC' },
+    container: {
+        flex: 1,
+        backgroundColor: theme.colors.background,
+    },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -357,5 +386,24 @@ const styles = StyleSheet.create({
         overflow: 'hidden', // For gradient
     },
     btnTextPrimary: { color: 'white', fontWeight: '700', fontSize: 16 },
-    btnTextSecondary: { color: '#64748B', fontWeight: '600', fontSize: 16 }
+    btnTextSecondary: { color: '#64748B', fontWeight: '600', fontSize: 16 },
+    colorGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 24,
+    },
+    colorCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    colorCircleSelected: {
+        borderColor: '#0F172A',
+        transform: [{ scale: 1.1 }],
+    }
 });

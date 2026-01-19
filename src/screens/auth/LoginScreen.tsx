@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, Dimensions, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { AuthService } from '../../services/authService';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -63,7 +63,11 @@ export const LoginScreen = () => {
                 style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}
             >
                 <Animated.View entering={FadeInDown.delay(200).duration(1000).springify()} style={styles.headerContainer}>
-                    <Text style={styles.appTitle}>Study Streak</Text>
+                    <Image
+                        source={require('../../images/app_logos/login_signup app image.png')}
+                        style={styles.logo}
+                        resizeMode="contain"
+                    />
                     <Text style={styles.title}>Welcome Back!</Text>
                     <Text style={styles.subtitle}>Ready to crush your goals?</Text>
                 </Animated.View>
@@ -137,16 +141,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 40,
     },
-    appTitle: {
-        fontSize: 42,
-        fontWeight: '900',
-        color: '#4F46E5', // Indigo Primary
-        marginBottom: 5,
-        letterSpacing: 1,
-        // Removed text shadow for cleaner look on light bg or soft shadow
-        textShadowColor: 'rgba(79, 70, 229, 0.2)',
-        textShadowOffset: { width: 2, height: 2 },
-        textShadowRadius: 10
+    logo: {
+        width: 300,
+        height: 100,
+        marginBottom: 10,
     },
     title: {
         fontSize: 24,

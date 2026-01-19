@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Linking } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft, Edit2, X } from 'lucide-react-native';
@@ -13,6 +14,10 @@ export const SettingsScreen = () => {
     const { user, updateUser } = useUserStore();
     const [darkMode, setDarkMode] = useState(user?.isDarkMode || false);
 
+    // Notification Time State
+    const [reminderTime, setReminderTime] = useState(new Date(new Date().setHours(9, 0, 0, 0))); // Default 9 AM
+    const [showTimePicker, setShowTimePicker] = useState(false);
+
     // Edit Username State
     const [isEditModalVisible, setEditModalVisible] = useState(false);
     const [newUsername, setNewUsername] = useState(user?.username || "");
@@ -24,10 +29,18 @@ export const SettingsScreen = () => {
         // TODO: Apply Theme Context globally
     };
 
-    const handleNotificationSetup = async () => {
-        await NotificationService.registerForPushNotificationsAsync();
-        await NotificationService.scheduleDailyReminder(9, 0);
-        Alert.alert("Notifications Enabled", "We'll remind you at 9:00 AM daily.");
+    const handleTimeChange = async (event: any, selectedDate?: Date) => {
+        setShowTimePicker(false);
+        if (selectedDate) {
+            setReminderTime(selectedDate);
+            const hour = selectedDate.getHours();
+            const minute = selectedDate.getMinutes();
+
+            await NotificationService.registerForPushNotificationsAsync();
+            await NotificationService.scheduleDailyReminder(hour, minute);
+
+            Alert.alert("Reminder Set!", `We'll buzz you at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} daily.`);
+        }
     };
 
     const handleLogout = async () => {
@@ -72,10 +85,22 @@ export const SettingsScreen = () => {
                     <Switch value={darkMode} onValueChange={toggleDarkMode} />
                 </View>
 
-                <TouchableOpacity style={styles.row} onPress={handleNotificationSetup}>
-                    <Text style={styles.label}>Enable Daily Reminders</Text>
-                    <Text style={styles.link}>Setup</Text>
+                <TouchableOpacity style={styles.row} onPress={() => setShowTimePicker(true)}>
+                    <Text style={styles.label}>Daily Reminder</Text>
+                    <Text style={styles.link}>
+                        {reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
                 </TouchableOpacity>
+
+                {showTimePicker && (
+                    <DateTimePicker
+                        value={reminderTime}
+                        mode="time"
+                        is24Hour={true}
+                        display="default"
+                        onChange={handleTimeChange}
+                    />
+                )}
             </View>
 
             <View style={styles.section}>
@@ -95,13 +120,27 @@ export const SettingsScreen = () => {
                 </View>
                 <View style={styles.row}>
                     <Text style={styles.label}>Version</Text>
-                    <Text style={styles.value}>1.0.0 (MVP)</Text>
+                    <Text style={styles.value}>1.1 (MVP)</Text>
                 </View>
             </View>
 
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
                 <Text style={styles.logoutText}>Log Out</Text>
             </TouchableOpacity>
+
+            {/* Credits Footer */}
+            <View style={styles.footer}>
+                <Text style={styles.creditsText}>developed by Jeet Verma💗</Text>
+                <View style={styles.linksContainer}>
+                    <TouchableOpacity onPress={() => Linking.openURL('https://github.com/jeetver1809')}>
+                        <Text style={styles.linkText}>GitHub</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.divider}>•</Text>
+                    <TouchableOpacity onPress={() => Linking.openURL('https://discord.com/users/872817963659587606')}>
+                        <Text style={styles.linkText}>Discord</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
 
             {/* Edit Username Modal */}
             <Modal
@@ -206,5 +245,30 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
         fontSize: 16
+    },
+    footer: {
+        marginTop: 'auto', // Push to bottom if container flexes, otherwise just margin
+        marginBottom: 20,
+        alignItems: 'center',
+        opacity: 0.6
+    },
+    creditsText: {
+        fontSize: 12,
+        color: '#999',
+        marginBottom: 4,
+    },
+    linksContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8
+    },
+    linkText: {
+        fontSize: 12,
+        color: theme.colors.primary,
+        fontWeight: '600'
+    },
+    divider: {
+        fontSize: 12,
+        color: '#CCC'
     }
 });

@@ -75,25 +75,28 @@ export const SubjectService = {
         return newSubject;
     },
 
+    async updateSubject(userId: string, subjectId: string, updates: Partial<Subject>) {
+        const subjectRef = doc(db, 'users', userId, 'subjects', subjectId);
+        await updateDoc(subjectRef, updates);
+    },
+
     async deleteSubject(userId: string, subjectId: string) {
         const subjectRef = doc(db, 'users', userId, 'subjects', subjectId);
         await deleteDoc(subjectRef);
     },
 
     // Chapters
-    async addChapter(userId: string, subjectId: string, name: string): Promise<Chapter> {
+    async addChapter(userId: string, subjectId: string, name: string, description?: string): Promise<Chapter> {
         const subjectRef = doc(db, 'users', userId, 'subjects', subjectId);
-        // Note: For simplicity, storing chapters as an array in the subject document. 
-        // If chapters grow large, they should be a subcollection.
-        // Assuming array for now based on typical casual usage.
 
         const subjectSnap = await getDoc(subjectRef);
         if (!subjectSnap.exists()) throw new Error("Subject not found");
 
         const subjectData = subjectSnap.data() as Subject;
         const newChapter: Chapter = {
-            id: Math.random().toString(36).substring(7), // Simple ID
+            id: Math.random().toString(36).substring(7),
             name,
+            description: description || '',
             isCompleted: false
         };
 
@@ -103,6 +106,36 @@ export const SubjectService = {
         });
 
         return newChapter;
+    },
+
+    async updateChapter(userId: string, subjectId: string, chapter: Chapter) {
+        const subjectRef = doc(db, 'users', userId, 'subjects', subjectId);
+        const subjectSnap = await getDoc(subjectRef);
+
+        if (subjectSnap.exists()) {
+            const subjectData = subjectSnap.data() as Subject;
+            const updatedChapters = (subjectData.chapters || []).map(c =>
+                c.id === chapter.id ? chapter : c
+            );
+
+            await updateDoc(subjectRef, {
+                chapters: updatedChapters
+            });
+        }
+    },
+
+    async deleteChapter(userId: string, subjectId: string, chapterId: string) {
+        const subjectRef = doc(db, 'users', userId, 'subjects', subjectId);
+        const subjectSnap = await getDoc(subjectRef);
+
+        if (subjectSnap.exists()) {
+            const subjectData = subjectSnap.data() as Subject;
+            const updatedChapters = (subjectData.chapters || []).filter(c => c.id !== chapterId);
+
+            await updateDoc(subjectRef, {
+                chapters: updatedChapters
+            });
+        }
     },
 
     // Study Time

@@ -45,6 +45,7 @@ export interface Chapter {
   id: string;
   name: string;
   isCompleted: boolean;
+  description?: string;
 }
 
 export interface Subject {

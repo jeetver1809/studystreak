@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Dimensions, Platform, InteractionManager } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing } from 'react-native-reanimated';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -69,13 +69,16 @@ export const StudySessionScreen = () => {
     // Load Subjects
     useEffect(() => {
         if (user?.uid && isFocused) {
-            console.log("Fetching subjects for user:", user.uid);
-            SubjectService.getSubjects(user.uid)
-                .then(setSubjects)
-                .catch(err => {
-                    console.error(err);
-                    Alert.alert("Offline Error", "Could not load subjects. Please check your connection or try again.");
-                });
+            const task = InteractionManager.runAfterInteractions(() => {
+                console.log("Fetching subjects for user:", user.uid);
+                SubjectService.getSubjects(user.uid)
+                    .then(setSubjects)
+                    .catch(err => {
+                        console.error(err);
+                        Alert.alert("Offline Error", "Could not load subjects. Please check your connection or try again.");
+                    });
+            });
+            return () => task.cancel();
         }
     }, [user?.uid, isFocused]);
 

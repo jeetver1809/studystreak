@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Dimensions, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Dimensions, Platform, KeyboardAvoidingView, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { AuthService } from '../../services/authService';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -62,7 +62,11 @@ export const RegisterScreen = () => {
                 style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}
             >
                 <Animated.View entering={FadeInDown.delay(200).duration(1000).springify()} style={styles.headerContainer}>
-                    <Text style={styles.appTitle}>Study Streak</Text>
+                    <Image
+                        source={require('../../images/app_logos/login_signup app image.png')}
+                        style={styles.logo}
+                        resizeMode="contain"
+                    />
                     <Text style={styles.title}>Join the Party!</Text>
                     <Text style={styles.subtitle}>Create your legend today.</Text>
                 </Animated.View>
@@ -129,16 +133,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 30,
     },
-    appTitle: {
-        fontSize: 32,
-        fontWeight: '900',
-        color: '#4F46E5', // Indigo Primary
-        marginBottom: 5,
-        letterSpacing: 1,
-        // Removed text shadow for cleaner look on light bg or soft shadow
-        textShadowColor: 'rgba(79, 70, 229, 0.2)',
-        textShadowOffset: { width: 2, height: 2 },
-        textShadowRadius: 10
+    logo: {
+        width: 300,
+        height: 100,
+        marginBottom: 10,
     },
     title: {
         fontSize: 28,

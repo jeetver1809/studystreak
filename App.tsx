@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { DiagnosticsService } from './src/services/DiagnosticsService';
-import { LogBox } from 'react-native';
+import { LogBox, View, Text } from 'react-native';
 
 import * as Linking from 'expo-linking';
 import { NetworkProvider } from './src/context/NetworkContext';

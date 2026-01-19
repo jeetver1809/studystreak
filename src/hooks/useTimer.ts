@@ -26,12 +26,14 @@ export const useTimer = (initialDurationSeconds = 25 * 60) => {
         return () => clearInterval(interval);
     }, [isActive, timeLeft]);
 
-    // Allow updating duration if timer is not active
+    // Allow updating duration if timer is not active (e.g. user changes duration in setup)
+    // We do NOT want to reset timeLeft when the user pauses (isActive becomes false), 
+    // so we remove 'isActive' from the dependency array.
     useEffect(() => {
         if (!isActive) {
             setTimeLeft(initialDurationSeconds);
         }
-    }, [initialDurationSeconds, isActive]);
+    }, [initialDurationSeconds]);
 
     const startTimer = () => setIsActive(true);
     const pauseTimer = () => setIsActive(false);

@@ -56,7 +56,8 @@ const getBookColor = (id: string, definedColor?: string) => {
     return BOOK_PALETTE[index];
 };
 
-export const SubjectBook = ({ subject, isSelected, onPress, onLongPress }: Props) => {
+const SubjectBookComponent = ({ subject, isSelected, onPress, onLongPress }: Props) => {
+    // ... logic ...
     const animation = useSharedValue(0);
     const sheenProgress = useSharedValue(0);
 
@@ -145,6 +146,8 @@ export const SubjectBook = ({ subject, isSelected, onPress, onLongPress }: Props
         </TouchableOpacity>
     );
 };
+
+export const SubjectBook = React.memo(SubjectBookComponent);
 
 const styles = StyleSheet.create({
     container: {

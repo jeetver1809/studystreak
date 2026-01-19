@@ -17,8 +17,10 @@ import { StreakService } from '../services/streakService';
 import { ContributionGraph } from '../components/ContributionGraph';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { ScreenGradient } from '../components/ui/ScreenGradient';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Avatar } from '../components/ui/Avatar';
 
 // Extend AuthService or add helper here to fetch ANY user
 const fetchUserProfile = async (uid: string) => {
@@ -167,10 +169,7 @@ export const ProfileScreen = () => {
         );
     }
 
-    // Default Avatar
-    const avatarSource = profileUser.photoURL
-        ? { uri: profileUser.photoURL }
-        : require('../../assets/adaptive-icon.png'); // Fallback to app icon or a dedicated placeholder
+    // Default Avatar logic moved to Avatar component
 
 
 
@@ -195,10 +194,7 @@ export const ProfileScreen = () => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <LinearGradient
-                colors={['#FFFFFF', '#F3F4F6']} // Subtle gradient
-                style={StyleSheet.absoluteFill}
-            />
+            <ScreenGradient />
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -224,7 +220,7 @@ export const ProfileScreen = () => {
             >
                 {/* Profile Image */}
                 <View style={styles.imageContainer}>
-                    <Image source={avatarSource} style={styles.avatar} />
+                    <Avatar source={profileUser.photoURL} size={120} style={styles.avatar} />
                     {isSelf && (
                         <TouchableOpacity style={styles.cameraButton} onPress={handlePickImage} disabled={uploading}>
                             {uploading ? <ActivityIndicator size="small" color="white" /> : <Camera size={20} color="white" />}
@@ -326,7 +322,7 @@ export const ProfileScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8F9FA', // Slightly gray background for contrast with white cards
+        backgroundColor: theme.colors.background, // Slightly gray background for contrast with white cards
     },
     header: {
         flexDirection: 'row',
@@ -353,12 +349,8 @@ const styles = StyleSheet.create({
         elevation: 8,
     },
     avatar: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
         borderWidth: 4,
         borderColor: 'white',
-        backgroundColor: '#eee',
     },
     cameraButton: {
         position: 'absolute',

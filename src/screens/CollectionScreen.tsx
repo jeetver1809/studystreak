@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions, InteractionManager } from 'react-native';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, Image, SectionList, TouchableOpacity, Dimensions, InteractionManager, ViewStyle } from 'react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Lock } from 'lucide-react-native';
@@ -44,6 +44,47 @@ export const CollectionScreen = () => {
         }));
     }, [user?.currentStreak]);
 
+    const renderSectionHeader = useCallback(({ section: { title, world } }: any) => (
+        <View style={styles.sectionHeader}>
+            <View style={[styles.colorStrip, { backgroundColor: world.primaryColor }]} />
+            <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+    ), []);
+
+    const renderItem = useCallback(({ item }: { item: any }) => {
+        return null; // Not used directly, we render rows
+    }, []);
+
+    // Helper to chunk data for grid rows
+    const sectionListData = useMemo(() => {
+        return sections.map(section => {
+            const rows = [];
+            for (let i = 0; i < section.data.length; i += COLUMN_COUNT) {
+                rows.push({
+                    id: `${section.title}-row-${i}`,
+                    items: section.data.slice(i, i + COLUMN_COUNT),
+                    world: section.world
+                });
+            }
+            return {
+                ...section,
+                data: rows
+            };
+        });
+    }, [sections]);
+
+    const renderRow = useCallback(({ item }: { item: any }) => (
+        <View style={styles.gridRow}>
+            {item.items.map((char: any) => (
+                <CharacterGridItem key={char.id} item={char} />
+            ))}
+            {/* Fill empty spots to maintain alignment if row is not full */}
+            {Array.from({ length: COLUMN_COUNT - item.items.length }).map((_, i) => (
+                <View key={`empty-${i}`} style={{ width: ITEM_WIDTH }} />
+            ))}
+        </View>
+    ), []);
+
     if (!user) return null;
 
     if (!isReady) {
@@ -73,61 +114,6 @@ export const CollectionScreen = () => {
         );
     }
 
-    const renderCharacterCard = (item: any) => {
-        const isUnlocked = item.isUnlocked;
-        const isNext = item.isNext;
-
-        return (
-            <View key={item.id} style={{ width: ITEM_WIDTH, marginBottom: GAP }}>
-                <Card
-                    style={[
-                        styles.card,
-                        isNext && styles.cardNext,
-                        !isUnlocked && !isNext && styles.cardLocked
-                    ]}
-                    padding="s"
-                >
-                    <View style={styles.imageContainer}>
-                        <Image
-                            source={item.image}
-                            style={[
-                                styles.image,
-                                !isUnlocked && styles.imageLocked,
-                            ]}
-                            resizeMode="contain"
-                        />
-
-                        {!isUnlocked && (
-                            <View style={[styles.lockOverlay, isNext ? styles.nextOverlay : styles.lockedOverlay]}>
-                                {isNext ? (
-                                    <View>
-                                        <Text style={styles.nextLabel}>NEXT</Text>
-                                        <Text style={styles.nextDay}>Day {item.unlockDay}</Text>
-                                    </View>
-                                ) : (
-                                    <Lock size={16} color="rgba(255,255,255,0.5)" />
-                                )}
-                            </View>
-                        )}
-                    </View>
-
-                    <View style={styles.infoContainer}>
-                        <Text
-                            numberOfLines={1}
-                            style={[
-                                styles.charName,
-                                isUnlocked ? styles.textUnlocked : styles.textLocked,
-                                isNext && { color: theme.colors.primary }
-                            ]}
-                        >
-                            {isUnlocked ? item.name : "???"}
-                        </Text>
-                    </View>
-                </Card>
-            </View>
-        );
-    };
-
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient
@@ -147,26 +133,77 @@ export const CollectionScreen = () => {
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView
+            <SectionList
+                sections={sectionListData}
+                keyExtractor={(item) => item.id}
+                renderItem={renderRow}
+                renderSectionHeader={renderSectionHeader}
                 contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                {sections.map((section) => (
-                    <View key={section.title} style={styles.sectionContainer}>
-                        <View style={styles.sectionHeader}>
-                            <View style={[styles.colorStrip, { backgroundColor: section.world.primaryColor }]} />
-                            <Text style={styles.sectionTitle}>{section.title}</Text>
-                        </View>
-
-                        <View style={styles.gridContainer}>
-                            {section.data.map(renderCharacterCard)}
-                        </View>
-                    </View>
-                ))}
-            </ScrollView>
+                stickySectionHeadersEnabled={false}
+                initialNumToRender={4}
+                maxToRenderPerBatch={4}
+                windowSize={5}
+                removeClippedSubviews={true}
+            />
         </SafeAreaView>
     );
 };
+
+// Memoized Item Component
+const CharacterGridItem = React.memo(({ item }: { item: any }) => {
+    const isUnlocked = item.isUnlocked;
+    const isNext = item.isNext;
+
+    return (
+        <View style={{ width: ITEM_WIDTH }}>
+            <Card
+                style={[
+                    styles.card,
+                    isNext && styles.cardNext,
+                    !isUnlocked && !isNext && styles.cardLocked
+                ]}
+                padding="s"
+            >
+                <View style={styles.imageContainer}>
+                    <Image
+                        source={item.image}
+                        style={[
+                            styles.image,
+                            !isUnlocked && styles.imageLocked,
+                        ]}
+                        resizeMode="contain"
+                    />
+
+                    {!isUnlocked && (
+                        <View style={[styles.lockOverlay, isNext ? styles.nextOverlay : styles.lockedOverlay]}>
+                            {isNext ? (
+                                <View>
+                                    <Text style={styles.nextLabel}>NEXT</Text>
+                                    <Text style={styles.nextDay}>Day {item.unlockDay}</Text>
+                                </View>
+                            ) : (
+                                <Lock size={16} color="rgba(255,255,255,0.5)" />
+                            )}
+                        </View>
+                    )}
+                </View>
+
+                <View style={styles.infoContainer}>
+                    <Text
+                        numberOfLines={1}
+                        style={[
+                            styles.charName,
+                            isUnlocked ? styles.textUnlocked : styles.textLocked,
+                            isNext && { color: theme.colors.primary }
+                        ]}
+                    >
+                        {isUnlocked ? item.name : "???"}
+                    </Text>
+                </View>
+            </Card>
+        </View>
+    );
+});
 
 const styles = StyleSheet.create({
     container: {
@@ -218,13 +255,16 @@ const styles = StyleSheet.create({
         color: theme.colors.text.primary,
         fontSize: 18,
     },
-    gridContainer: {
+    gridRow: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
         paddingHorizontal: CONTAINER_PADDING,
-        justifyContent: 'flex-start',
-        gap: GAP,
+        justifyContent: 'space-between', // Changed to space-between for alignment
+        gap: GAP, // Keep gap, but if space-between, gap might conflict with exact math. 
+        // Actually, with precise widths, 'flex-start' + gap is safer.
+        // Let's revert to 'flex-start' for row.
+        marginBottom: GAP
     },
+    // Removed gridContainer in favor of gridRow logic managed by renderRow
     // Card Styles
     card: {
         backgroundColor: '#FFFFFF',

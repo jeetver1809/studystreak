@@ -11,6 +11,7 @@ import { SafeBarChart } from '../components/analytics/SafeBarChart';
 import { SafePieChart } from '../components/analytics/SafePieChart';
 import { FilterComponent, FilterRange } from '../components/analytics/FilterComponent';
 import { Subject } from '../types';
+import { ScreenGradient } from '../components/ui/ScreenGradient';
 
 import { format, parseISO } from 'date-fns';
 
@@ -149,6 +150,7 @@ export const AnalyticsScreen = () => {
 
     return (
         <SafeAreaView style={styles.container}>
+            <ScreenGradient />
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
@@ -238,7 +240,7 @@ export const AnalyticsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F8F9FA' },
+    container: { flex: 1, backgroundColor: theme.colors.background },
     scrollContent: { padding: theme.spacing.l, paddingBottom: 100 },
     header: { marginBottom: 16 },
     title: {

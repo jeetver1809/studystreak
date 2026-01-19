@@ -1,9 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { User } from '../types';
 import { theme } from '../theme/theme';
 import { Globe } from 'lucide-react-native';
+import { Avatar } from './ui/Avatar';
 
 interface StoryTrayProps {
     users: User[];
@@ -12,57 +13,69 @@ interface StoryTrayProps {
 }
 
 export const StoryTray: React.FC<StoryTrayProps> = ({ users, selectedId, onSelect }) => {
+
+    // Header for "All" option
+    const renderHeader = useCallback(() => (
+        <TouchableOpacity
+            style={[styles.storyItem, { marginRight: 16 }]}
+            onPress={() => onSelect(null)}
+        >
+            <View style={[
+                styles.ring,
+                selectedId === null ? styles.ringActive : styles.ringInactive
+            ]}>
+                <View style={styles.avatarPlaceholder}>
+                    <Globe size={24} color={selectedId === null ? "white" : theme.colors.primary} />
+                </View>
+            </View>
+            <Text style={styles.name}>All</Text>
+        </TouchableOpacity>
+    ), [selectedId, onSelect]);
+
+    const renderItem = useCallback(({ item }: { item: User }) => (
+        <StoryItem
+            user={item}
+            isSelected={selectedId === item.uid}
+            onSelect={onSelect}
+        />
+    ), [selectedId, onSelect]);
+
     return (
-        <ScrollView
+        <FlatList
+            data={users}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.container}
-        >
-            {/* "All" Option */}
-            <TouchableOpacity
-                style={styles.storyItem}
-                onPress={() => onSelect(null)}
-            >
-                <View style={[
-                    styles.ring,
-                    selectedId === null ? styles.ringActive : styles.ringInactive
-                ]}>
-                    <View style={styles.avatarPlaceholder}>
-                        <Globe size={24} color={selectedId === null ? "white" : theme.colors.primary} />
-                    </View>
-                </View>
-                <Text style={styles.name}>All</Text>
-            </TouchableOpacity>
-
-            {/* Friend Items */}
-            {users.map(user => {
-                const isSelected = selectedId === user.uid;
-                return (
-                    <TouchableOpacity
-                        key={user.uid}
-                        style={styles.storyItem}
-                        onPress={() => onSelect(user.uid)}
-                    >
-                        <LinearGradient
-                            colors={isSelected ? ['#3B82F6', '#8B5CF6'] : ['#E5E7EB', '#E5E7EB']}
-                            style={styles.ringGradient}
-                        >
-                            <View style={styles.avatarContainer}>
-                                <Image
-                                    source={user.photoURL ? { uri: user.photoURL } : require('../../assets/adaptive-icon.png')}
-                                    style={styles.avatar}
-                                />
-                            </View>
-                        </LinearGradient>
-                        <Text style={styles.name} numberOfLines={1}>
-                            {user.username.split(' ')[0]}
-                        </Text>
-                    </TouchableOpacity>
-                );
-            })}
-        </ScrollView>
+            renderItem={renderItem}
+            keyExtractor={item => item.uid}
+            ListHeaderComponent={renderHeader}
+            initialNumToRender={5}
+            windowSize={3}
+        />
     );
 };
+
+// Memoized Item
+const StoryItem = React.memo(({ user, isSelected, onSelect }: { user: User, isSelected: boolean, onSelect: (id: string) => void }) => {
+    return (
+        <TouchableOpacity
+            style={styles.storyItem}
+            onPress={() => onSelect(user.uid)}
+        >
+            <LinearGradient
+                colors={isSelected ? ['#3B82F6', '#8B5CF6'] : ['#E5E7EB', '#E5E7EB']}
+                style={styles.ringGradient}
+            >
+                <View style={styles.avatarContainer}>
+                    <Avatar source={user.photoURL} size={52} />
+                </View>
+            </LinearGradient>
+            <Text style={styles.name} numberOfLines={1}>
+                {user.username.split(' ')[0]}
+            </Text>
+        </TouchableOpacity>
+    );
+});
 
 const styles = StyleSheet.create({
     container: {

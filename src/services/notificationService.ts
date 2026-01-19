@@ -44,10 +44,21 @@ export const NotificationService = {
     async scheduleDailyReminder(hour: number = 20, minute: number = 0) {
         await Notifications.cancelAllScheduledNotificationsAsync();
 
+        const messages = [
+            { title: "Time to study! 😼", body: "Don't break the streak, legend." },
+            { title: "Study or bad luck 🔮", body: "Just kidding (maybe). Open the app!" },
+            { title: "Hey you! 👀", body: "Your future self is begging you to study." },
+            { title: "Knock knock 🚪", body: "Who's there? A higher GPA if you study now." },
+            { title: "Brain food time 🧠", body: "Feed your brain some knowledge." },
+            { title: "Streak at risk! 🔥", body: "Save your streak before it freezes!" },
+        ];
+
+        const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+
         await Notifications.scheduleNotificationAsync({
             content: {
-                title: "Time to Study! 📚",
-                body: "Keep your streak alive. 25 minutes to greatness.",
+                title: randomMessage.title,
+                body: randomMessage.body,
             },
             trigger: {
                 hour,
@@ -55,6 +66,6 @@ export const NotificationService = {
                 repeats: true,
             } as any,
         });
-        console.log(`Scheduled reminder for ${hour}:${minute}`);
+        console.log(`Scheduled reminder for ${hour}:${minute} with message: ${randomMessage.title}`);
     }
 };

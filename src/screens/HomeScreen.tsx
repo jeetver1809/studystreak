@@ -17,6 +17,7 @@ import { Card } from '../components/ui/Card';
 import { Coins, AlertTriangle } from 'lucide-react-native';
 import { StreakService } from '../services/streakService';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ScreenGradient } from '../components/ui/ScreenGradient';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
@@ -156,11 +157,7 @@ export const HomeScreen = () => {
         <GestureDetector gesture={panGesture}>
             <View style={styles.mainContainer}>
                 {/* Background */}
-                <LinearGradient
-                    colors={['#F0F4FF', '#FFFFFF', '#F5F3FF']}
-                    locations={[0, 0.4, 1]}
-                    style={StyleSheet.absoluteFill}
-                />
+                <ScreenGradient />
 
                 <View style={{ position: 'absolute', top: -100, left: 0, zIndex: 100 }} pointerEvents="none">
                     <ConfettiCannon
@@ -553,7 +550,7 @@ const DrawerItem = ({ icon: Icon, label, color, onPress }: any) => (
 const styles = StyleSheet.create({
     mainContainer: {
         flex: 1,
-        backgroundColor: '#F8F9FA',
+        backgroundColor: theme.colors.background, // Fallback
     },
     header: {
         position: 'absolute', // Absolute positioning
