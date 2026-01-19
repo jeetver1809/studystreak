@@ -212,7 +212,8 @@ export const StudySessionScreen = () => {
                             horizontal
                             showsHorizontalScrollIndicator={false}
                             contentContainerStyle={[styles.subjectList, { paddingHorizontal: theme.spacing.l }]}
-                            style={{ overflow: 'visible' }} // Allow shadows to show
+                            style={{ overflow: 'visible', width: '100%' }} // Allow shadows to show
+                            nestedScrollEnabled={true}
                         >
                             {subjects.map(subject => (
                                 <SubjectBook
@@ -249,7 +250,12 @@ export const StudySessionScreen = () => {
                     {selectedSubject && (
                         <View style={styles.sectionContainer}>
                             <Text style={[styles.sectionHeader, { paddingHorizontal: theme.spacing.l }]}>Focus Area <Text style={styles.optionalText}>(Optional)</Text></Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: theme.spacing.l }}>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ gap: 8, paddingHorizontal: theme.spacing.l }}
+                                nestedScrollEnabled={true}
+                            >
                                 <TouchableOpacity
                                     style={[styles.chip, !selectedChapterId && styles.chipSelected]}
                                     onPress={() => setSelectedChapterId(null)}
