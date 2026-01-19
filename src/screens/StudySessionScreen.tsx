@@ -205,13 +205,13 @@ export const StudySessionScreen = () => {
                 <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
                     {/* 1. Subject Selection - Horizontal Books */}
-                    <Text style={styles.sectionHeader}>Select Subject</Text>
+                    <Text style={[styles.sectionHeader, { paddingHorizontal: theme.spacing.l }]}>Select Subject</Text>
 
                     {subjects.length > 0 ? (
                         <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.subjectList}
+                            contentContainerStyle={[styles.subjectList, { paddingHorizontal: theme.spacing.l }]}
                             style={{ overflow: 'visible' }} // Allow shadows to show
                         >
                             {subjects.map(subject => (
@@ -238,7 +238,7 @@ export const StudySessionScreen = () => {
                         </ScrollView>
                     ) : (
                         <TouchableOpacity
-                            style={styles.emptySubjectCard}
+                            style={[styles.emptySubjectCard, { marginHorizontal: theme.spacing.l }]}
                             onPress={() => navigation.navigate('Subjects')}
                         >
                             <Text style={styles.emptySubjectText}>No subjects yet. Tap to create one!</Text>
@@ -248,8 +248,8 @@ export const StudySessionScreen = () => {
                     {/* 2. Chapter Selection (Optional) */}
                     {selectedSubject && (
                         <View style={styles.sectionContainer}>
-                            <Text style={styles.sectionHeader}>Focus Area <Text style={styles.optionalText}>(Optional)</Text></Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}>
+                            <Text style={[styles.sectionHeader, { paddingHorizontal: theme.spacing.l }]}>Focus Area <Text style={styles.optionalText}>(Optional)</Text></Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: theme.spacing.l }}>
                                 <TouchableOpacity
                                     style={[styles.chip, !selectedChapterId && styles.chipSelected]}
                                     onPress={() => setSelectedChapterId(null)}
@@ -278,8 +278,8 @@ export const StudySessionScreen = () => {
                     )}
 
                     {/* 3. Duration Selection */}
-                    <Text style={[styles.sectionHeader, { marginTop: 24 }]}>Duration</Text>
-                    <View style={styles.durationGrid}>
+                    <Text style={[styles.sectionHeader, { marginTop: 24, paddingHorizontal: theme.spacing.l }]}>Duration</Text>
+                    <View style={[styles.durationGrid, { paddingHorizontal: theme.spacing.l }]}>
                         {DURATIONS.map((mins) => (
                             <TouchableOpacity
                                 key={mins}
@@ -307,14 +307,16 @@ export const StudySessionScreen = () => {
                         <Text style={{ fontSize: 12, color: theme.colors.text.secondary }}>Dev: 10s Timer (1 XP)</Text>
                     </TouchableOpacity> */}
 
-                    <Card style={styles.tipCard}>
-                        <View style={styles.tipIconBox}>
-                            <Clock size={16} color={theme.colors.primary} />
-                        </View>
-                        <Text style={styles.tipText}>
-                            <Text style={{ fontWeight: '700', color: theme.colors.primary }}>Pro Tip:</Text> 30+ min sessions count towards your daily streak!
-                        </Text>
-                    </Card>
+                    <View style={{ paddingHorizontal: theme.spacing.l }}>
+                        <Card style={styles.tipCard}>
+                            <View style={styles.tipIconBox}>
+                                <Clock size={16} color={theme.colors.primary} />
+                            </View>
+                            <Text style={styles.tipText}>
+                                <Text style={{ fontWeight: '700', color: theme.colors.primary }}>Pro Tip:</Text> 30+ min sessions count towards your daily streak!
+                            </Text>
+                        </Card>
+                    </View>
 
                     <View style={{ height: 120 }} />
                 </ScrollView>
@@ -476,7 +478,7 @@ const styles = StyleSheet.create({
     },
     title: { ...theme.text.h3, color: theme.colors.text.primary },
     subtitle: { ...theme.text.caption, color: theme.colors.text.secondary },
-    content: { padding: theme.spacing.l },
+    content: { paddingVertical: theme.spacing.l },
     sectionHeader: {
         fontSize: 18,
         fontWeight: '700',
@@ -493,7 +495,7 @@ const styles = StyleSheet.create({
     },
     subjectList: {
         gap: 0,
-        paddingHorizontal: 8,
+        // paddingHorizontal: 8 // Moved to inline style
         paddingBottom: 20,
     },
     subjectBookPlaceholder: {
