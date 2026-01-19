@@ -1,5 +1,5 @@
 import { db } from './firebaseConfig';
-import { collection, query, where, getDocs, documentId, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, getDocs, documentId, doc, updateDoc, arrayUnion, arrayRemove, orderBy, startAt, endAt, limit } from 'firebase/firestore';
 import { User } from '../types';
 
 export const UserService = {
@@ -43,6 +43,78 @@ export const UserService = {
         } catch (error) {
             console.error("[UserService] Failed to fetch users:", error);
             return [];
+        }
+    },
+
+
+    /**
+     * Searches for users by username prefix.
+     */
+    searchUsers: async (searchText: string): Promise<User[]> => {
+        if (!searchText.trim()) return [];
+
+        try {
+            const q = query(
+                collection(db, 'users'),
+                orderBy('username'),
+                startAt(searchText),
+                endAt(searchText + '\uf8ff'),
+                limit(10)
+            );
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+        } catch (error) {
+            console.error("[UserService] Search failed:", error);
+            return [];
+        }
+    },
+
+    /**
+     * Follows a user.
+     * Updates currentUser's followingIds AND targetUser's followersIds.
+     */
+    followUser: async (currentUserId: string, targetUserId: string) => {
+        if (!currentUserId || !targetUserId) return;
+        try {
+            // 1. Add to my following
+            const currentUserRef = doc(db, 'users', currentUserId);
+            await updateDoc(currentUserRef, {
+                followingIds: arrayUnion(targetUserId)
+            });
+
+            // 2. Add to their followers
+            const targetUserRef = doc(db, 'users', targetUserId);
+            await updateDoc(targetUserRef, {
+                followersIds: arrayUnion(currentUserId)
+            });
+            return true;
+        } catch (error) {
+            console.error("[UserService] Follow failed:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Unfollows a user.
+     */
+    unfollowUser: async (currentUserId: string, targetUserId: string) => {
+        if (!currentUserId || !targetUserId) return;
+        try {
+            // 1. Remove from my following
+            const currentUserRef = doc(db, 'users', currentUserId);
+            await updateDoc(currentUserRef, {
+                followingIds: arrayRemove(targetUserId)
+            });
+
+            // 2. Remove from their followers
+            const targetUserRef = doc(db, 'users', targetUserId);
+            await updateDoc(targetUserRef, {
+                followersIds: arrayRemove(currentUserId)
+            });
+            return true;
+        } catch (error) {
+            console.error("[UserService] Unfollow failed:", error);
+            throw error;
         }
     }
 };

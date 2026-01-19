@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert, Tex
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Edit2, Users, Trophy, Camera, Check, Star } from 'lucide-react-native';
+import { ArrowLeft, Edit2, Users, Trophy, Camera, Check, Star, UserCheck } from 'lucide-react-native';
 import { CharacterProgressionService } from '../services/CharacterProgressionService';
 
 import { theme } from '../theme/theme';
@@ -255,47 +255,61 @@ export const ProfileScreen = () => {
 
                 {/* Stats Row */}
                 {/* Stats Row */}
-                <View style={styles.statsContainer}>
-                    {/* Followers Card */}
-                    <TouchableOpacity
-                        style={styles.statCard}
-                        onPress={() => navigation.navigate('UserList', {
-                            userId: profileUser.uid,
-                            type: 'followers',
-                            title: 'Followers'
-                        })}
-                    >
-                        <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
-                            <Users size={20} color={theme.colors.primary} />
-                        </View>
-                        <Text style={styles.statValue}>{profileUser.followersCount || 0}</Text>
-                        <Text style={styles.statLabel}>Followers</Text>
-                    </TouchableOpacity>
+                <View style={styles.statsGrid}>
+                    {/* Row 1: Social */}
+                    <View style={styles.statsRow}>
+                        <TouchableOpacity
+                            style={styles.statCard}
+                            onPress={() => navigation.navigate('UserList', {
+                                userId: profileUser.uid,
+                                type: 'followers',
+                                title: 'Followers'
+                            })}
+                        >
+                            <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
+                                <Users size={20} color={theme.colors.primary} />
+                            </View>
+                            <Text style={styles.statValue}>{profileUser.followersCount || 0}</Text>
+                            <Text style={styles.statLabel}>Followers</Text>
+                        </TouchableOpacity>
 
-                    {/* Following Card (Optional, showing placeholder or just keeping 2 for now to match verified layout, but user might want Following too) */}
-                    {/* Let's keep it simple: Followers & Streak. Or maybe add Following if we have the data. 
-                        The schema has followingIds. Let's show Following count too if we can, else just keep these 2 but style them better.
-                        Actually, let's just do Followers and Streak for now as they are implemented. 
-                    */}
-
-                    {/* Level Card */}
-                    <View style={styles.statCard}>
-                        <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
-                            <Star size={20} color="#3B82F6" fill="#3B82F6" />
-                        </View>
-                        <Text style={styles.statValue}>
-                            {CharacterProgressionService.calculateLevel((profileUser.totalStudyMinutes || 0) * 10)}
-                        </Text>
-                        <Text style={styles.statLabel}>Level</Text>
+                        <TouchableOpacity
+                            style={styles.statCard}
+                            onPress={() => navigation.navigate('UserList', {
+                                userId: profileUser.uid,
+                                type: 'following',
+                                title: 'Following'
+                            })}
+                        >
+                            <View style={[styles.iconCircle, { backgroundColor: '#F0FDF4' }]}>
+                                <UserCheck size={20} color={theme.colors.success} />
+                            </View>
+                            <Text style={styles.statValue}>
+                                {profileUser.followingIds?.length || 0}
+                            </Text>
+                            <Text style={styles.statLabel}>Following</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    {/* Streak Card */}
-                    <View style={styles.statCard}>
-                        <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
-                            <Trophy size={20} color="#D97706" />
+                    {/* Row 2: Progress */}
+                    <View style={styles.statsRow}>
+                        <View style={styles.statCard}>
+                            <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
+                                <Star size={20} color="#3B82F6" fill="#3B82F6" />
+                            </View>
+                            <Text style={styles.statValue}>
+                                {CharacterProgressionService.calculateLevel((profileUser.totalStudyMinutes || 0) * 10)}
+                            </Text>
+                            <Text style={styles.statLabel}>Level</Text>
                         </View>
-                        <Text style={styles.statValue}>{profileUser.currentStreak}</Text>
-                        <Text style={styles.statLabel}>Day Streak</Text>
+
+                        <View style={styles.statCard}>
+                            <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
+                                <Trophy size={20} color="#D97706" />
+                            </View>
+                            <Text style={styles.statValue}>{profileUser.currentStreak}</Text>
+                            <Text style={styles.statLabel}>Day Streak</Text>
+                        </View>
                     </View>
                 </View>
 
@@ -393,13 +407,15 @@ const styles = StyleSheet.create({
         marginTop: 8,
         paddingBottom: 4,
     },
-    statsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 16,
+    statsGrid: {
         width: '100%',
         paddingHorizontal: theme.spacing.l,
         marginBottom: 8,
+        gap: 12,
+    },
+    statsRow: {
+        flexDirection: 'row',
+        gap: 12,
     },
     statCard: {
         flex: 1,

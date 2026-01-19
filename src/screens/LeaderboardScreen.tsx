@@ -178,8 +178,13 @@ const PodiumItem = ({ user, rank }: { user: User, rank: number }) => {
     if (rank === 2) { boxColor = '#F1F5F9'; badgeColor = '#64748B'; } // Silver
     if (rank === 3) { boxColor = '#FFF7ED'; badgeColor = '#EA580C'; } // Bronze
 
+    const navigation = useNavigation<any>();
+
     return (
-        <View style={[styles.podiumItem, { marginTop: isFirst ? 0 : 40 }]}>
+        <TouchableOpacity
+            style={[styles.podiumItem, { marginTop: isFirst ? 0 : 40 }]}
+            onPress={() => navigation.navigate('Profile', { userId: user.uid })}
+        >
             <View style={[styles.avatarContainer, { borderColor: badgeColor }]}>
                 <Avatar source={user.photoURL} size={avatarSize} />
                 <View style={[styles.rankBadge, { backgroundColor: badgeColor }]}>
@@ -201,7 +206,7 @@ const PodiumItem = ({ user, rank }: { user: User, rank: number }) => {
                 colors={[boxColor, '#FFFFFF']}
                 style={[styles.podiumBox, { height: isFirst ? 140 : 100 }]}
             />
-        </View>
+        </TouchableOpacity>
     );
 }
 

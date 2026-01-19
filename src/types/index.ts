@@ -18,6 +18,7 @@ export interface User {
   currentStreak: number;
   longestStreak: number;
   totalCharacters: number;
+  level?: number;
   totalStudyMinutes?: number;
   todayStudyMinutes?: number; // Track precise daily progress
   lastStudyDate: string; // "YYYY-MM-DD"

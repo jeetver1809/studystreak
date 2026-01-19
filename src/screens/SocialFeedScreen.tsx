@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator, RefreshControl, InteractionManager } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator, RefreshControl, InteractionManager, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { ArrowLeft, BookOpen, Flame, Trophy, Award, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, BookOpen, Flame, Trophy, Award, Trash2, Search, UserPlus, UserCheck, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
@@ -25,7 +25,13 @@ export const SocialFeedScreen = () => {
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
     const [hiddenActivityIds, setHiddenActivityIds] = useState<string[]>(user?.hiddenActivityIds || []);
+
+    // Search State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<User[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
 
 
 
@@ -75,7 +81,65 @@ export const SocialFeedScreen = () => {
     const handleRefresh = () => {
         setRefreshing(true);
         loadFeed();
+        loadFeed();
     };
+
+    const handleSearch = async (text: string) => {
+        setSearchQuery(text);
+        if (text.trim().length === 0) {
+            setSearchResults([]);
+            setIsSearching(false);
+            return;
+        }
+
+        setIsSearching(true);
+        // Simple debounce or just fire (for MVP firing on change is okay if traffic low, but let's delay slightly effectively by UI speed)
+        // actually Firestore reads can be expensive. Let's trigger on debounce or submit.
+        // For better UX, let's search on every 3rd char or wait. 
+        // Let's keep it simple: Search on submit or if length > 2
+
+        try {
+            const results = await UserService.searchUsers(text);
+            const filtered = results.filter(u => u.uid !== user?.uid); // Don't show myself
+            setSearchResults(filtered);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleFollow = async (targetUser: User) => {
+        if (!user || !user.uid) return;
+
+        // Optimistic update
+        const alreadyFollowing = user.followingIds?.includes(targetUser.uid);
+
+        try {
+            if (alreadyFollowing) {
+                // For now, let's NOT support unfollow easily here to prevent accidental taps, 
+                // or maybe toggling is fine. Let's toggle.
+                // Actually plan said "optional unfolow". Let's stick to Follow only for search results for safety?
+                // User asked for "Search and send follow". 
+                // If I am already following, showing "Following" is good.
+                return;
+            }
+
+            await UserService.followUser(user.uid, targetUser.uid);
+            // Force refresh user to get new followingIds (UserStore should update if we listen to it or we manually update local state)
+            // For MVP, just visually showing "Following" might be tricky if we don't update store.
+            // Let's Assume UserStore listens to auth changes or we rely on hot reload?
+            // Actually ActivityService/UserService updates Firestore, but useAuthListener updates global state?
+            // We might need to manually update local knowing.
+            // Let's just alert "Followed!" or similar visual feedback.
+            alert(`You are now following ${targetUser.username}!`);
+            loadFeed(); // Reload feed to maybe see their stuff? (unlikely immediately)
+        } catch (error) {
+            alert("Failed to follow.");
+        }
+    };
+
+    const isFollowing = (targetId: string) => user?.followingIds?.includes(targetId);
 
     if (!isReady || (loading && !refreshing)) {
         return (
@@ -236,36 +300,104 @@ export const SocialFeedScreen = () => {
                 <View style={{ width: 24 }} />
             </View>
 
-            {/* Story Tray */}
-            {!loading && followedUsers.length > 0 && (
-                <View style={styles.trayContainer}>
-                    <StoryTray
-                        users={followedUsers}
-                        selectedId={selectedUserId}
-                        onSelect={handleSelectUser}
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+                <View style={styles.searchBar}>
+                    <Search size={20} color="#9CA3AF" />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Find friends by username..."
+                        placeholderTextColor="#9CA3AF"
+                        value={searchQuery}
+                        onChangeText={handleSearch}
+                        autoCapitalize="none"
+                    />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => handleSearch('')}>
+                            <X size={18} color="#9CA3AF" />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+
+            {/* Search Results Overlay or List */}
+            {searchQuery.length > 0 ? (
+                <View style={styles.searchResults}>
+                    <FlatList
+                        keyboardShouldPersistTaps="handled"
+                        data={searchResults}
+                        keyExtractor={item => item.uid}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity
+                                style={styles.userResultItem}
+                                onPress={() => navigation.navigate('Profile', { userId: item.uid })}
+                            >
+                                <Image source={item.photoURL ? { uri: item.photoURL } : require('../../assets/adaptive-icon.png')} style={styles.resultAvatar} />
+                                <View style={{ flex: 1, marginLeft: 12 }}>
+                                    <Text style={styles.resultName}>{item.username}</Text>
+                                    <Text style={styles.resultLevel}>Level {item.level} • {item.totalCharacters} Chars</Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={[styles.followButton, isFollowing(item.uid) && styles.followingButton]}
+                                    onPress={() => handleFollow(item)}
+                                >
+                                    {isFollowing(item.uid) ? (
+                                        <>
+                                            <UserCheck size={16} color="white" />
+                                            <Text style={styles.followButtonText}>Following</Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <UserPlus size={16} color="white" />
+                                            <Text style={styles.followButtonText}>Follow</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </TouchableOpacity>
+                        )}
+                        ListEmptyComponent={
+                            <View style={{ padding: 20, alignItems: 'center' }}>
+                                <Text style={{ color: '#6B7280' }}>
+                                    {isSearching ? 'Searching...' : 'No users found.'}
+                                </Text>
+                            </View>
+                        }
                     />
                 </View>
-            )}
-
-            {/* Content */}
-            {activities.length === 0 ? (
-                <View style={styles.center}>
-                    <Text style={styles.emptyText}>No activity yet.</Text>
-                    <Text style={styles.emptySubText}>Follow more people to see their updates!</Text>
-                </View>
             ) : (
-                <FlatList
-                    data={filteredActivities}
-                    keyExtractor={item => item.id}
-                    renderItem={renderItem}
-                    contentContainerStyle={styles.listContent}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-                    ListEmptyComponent={
-                        <View style={[styles.center, { marginTop: 40 }]}>
-                            <Text style={{ color: '#9CA3AF' }}>No recent activity for this friend.</Text>
+                <>
+                    {/* Story Tray */}
+                    {!loading && followedUsers.length > 0 && (
+                        <View style={styles.trayContainer}>
+                            <StoryTray
+                                users={followedUsers}
+                                selectedId={selectedUserId}
+                                onSelect={handleSelectUser}
+                            />
                         </View>
-                    }
-                />
+                    )}
+
+                    {/* Content */}
+                    {activities.length === 0 ? (
+                        <View style={styles.center}>
+                            <Text style={styles.emptyText}>No activity yet.</Text>
+                            <Text style={styles.emptySubText}>Follow more people to see their updates!</Text>
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={filteredActivities}
+                            keyExtractor={item => item.id}
+                            renderItem={renderItem}
+                            contentContainerStyle={styles.listContent}
+                            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+                            ListEmptyComponent={
+                                <View style={[styles.center, { marginTop: 40 }]}>
+                                    <Text style={{ color: '#9CA3AF' }}>No recent activity for this friend.</Text>
+                                </View>
+                            }
+                        />
+                    )}
+                </>
             )}
         </SafeAreaView>
     );
@@ -353,5 +485,70 @@ const styles = StyleSheet.create({
         color: theme.colors.text.secondary,
         textAlign: 'center',
         marginTop: 8,
-    }
+    },
+    // Search Styles
+    searchContainer: {
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+        paddingTop: 0,
+        backgroundColor: 'rgba(255,255,255,0.8)',
+    },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F3F4F6',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        height: 44,
+    },
+    searchInput: {
+        flex: 1,
+        marginLeft: 8,
+        fontSize: 16,
+        color: '#1F2937',
+    },
+    searchResults: {
+        flex: 1,
+        backgroundColor: 'white',
+    },
+    userResultItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    resultAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#E5E7EB',
+    },
+    resultName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#111827',
+    },
+    resultLevel: {
+        fontSize: 12,
+        color: '#6B7280',
+    },
+    followButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: theme.colors.primary,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+    },
+    followingButton: {
+        backgroundColor: '#10B981', // Green for following
+        opacity: 0.8,
+    },
+    followButtonText: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+    },
 });

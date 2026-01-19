@@ -47,6 +47,8 @@ const BOOK_PALETTE = [
 ];
 
 const getBookColor = (id: string, definedColor?: string) => {
+    if (definedColor) return definedColor;
+
     // Simple hash to pick a consistent color from palette
     let hash = 0;
     for (let i = 0; i < id.length; i++) {
