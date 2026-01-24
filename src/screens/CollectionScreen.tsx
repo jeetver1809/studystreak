@@ -116,10 +116,10 @@ export const CollectionScreen = () => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <LinearGradient
+            {/* <LinearGradient
                 colors={['#FFFFFF', '#F8FAFC', '#F1F5F9']}
                 style={StyleSheet.absoluteFill}
-            />
+            /> */}
 
             {/* Header */}
             <View style={styles.header}>

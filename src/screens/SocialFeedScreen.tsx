@@ -15,7 +15,89 @@ import { Skeleton } from '../components/ui/Skeleton';
 
 import { UserService } from '../services/userService';
 import { User } from '../types';
+import { Image as ExpoImage } from 'expo-image';
 import { StoryTray } from '../components/StoryTray';
+import { Avatar } from '../components/ui/Avatar';
+
+// Memoized List Item Component to prevent re-renders
+const FeedItem = React.memo(({ item, onHide, onFollow, navigation, isHidden }: { item: Activity, onHide: (id: string) => void, onFollow?: (id: string) => void, navigation: any, isHidden: boolean }) => {
+
+    // Render Helpers
+    const renderActivityIcon = (type: Activity['type']) => {
+        switch (type) {
+            case 'session_completed': return <BookOpen size={20} color={theme.colors.success} />;
+            case 'streak_repaired': return <Flame size={20} color={theme.colors.error} />;
+            case 'level_up': return <Trophy size={20} color={theme.colors.primary} />;
+            default: return <Award size={20} color={theme.colors.warning} />;
+        }
+    };
+
+    const renderActivityText = (item: Activity) => {
+        switch (item.type) {
+            case 'session_completed':
+                if (item.data.durationSeconds && item.data.durationSeconds < 60) {
+                    return `studied for ${Math.floor(item.data.durationSeconds)} seconds! ⚡`;
+                }
+                const mins = item.data.durationMinutes || 0;
+                if (mins === 0 && !item.data.durationSeconds) {
+                    return `studied for less than a minute! ⚡`;
+                }
+                return `studied for ${mins} minutes! 📚`;
+            case 'streak_repaired':
+                return `repaired their ${item.data.streakCount} day streak! 🔥`;
+            case 'level_up':
+                return `unlocked ${item.data.characterName}! 🥚`;
+            default:
+                return 'did something cool!';
+        }
+    };
+
+    const renderRightActions = (progress: any, dragX: any) => {
+        return (
+            <View style={{ width: 80, height: '100%', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+                <TouchableOpacity
+                    onPress={() => onHide(item.id)}
+                    style={styles.deleteAction}
+                >
+                    <Trash2 size={24} color="white" />
+                </TouchableOpacity>
+            </View>
+        );
+    };
+
+    if (isHidden) return null;
+
+    return (
+        <Swipeable
+            renderRightActions={renderRightActions}
+            onSwipeableRightOpen={() => onHide(item.id)}
+        >
+            <Card style={styles.card} padding="m">
+                <View style={styles.cardHeader}>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('Profile', { userId: item.userId })}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                    >
+                        <Avatar source={item.userPhotoURL} size={40} />
+                        <View>
+                            <Text style={styles.username}>{item.username}</Text>
+                            <Text style={styles.timestamp}>{item.createdAt.toDate().toLocaleDateString()}</Text>
+                        </View>
+                    </TouchableOpacity>
+                    <View style={[styles.iconContainer, { backgroundColor: theme.colors.background }]}>
+                        {renderActivityIcon(item.type)}
+                    </View>
+                </View>
+
+                <View style={styles.cardBody}>
+                    <Text style={styles.activityText}>
+                        {renderActivityText(item)}
+                    </Text>
+                </View>
+            </Card>
+        </Swipeable>
+    );
+});
 
 export const SocialFeedScreen = () => {
     const navigation = useNavigation<any>();
@@ -69,11 +151,8 @@ export const SocialFeedScreen = () => {
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => {
-            // Tiny delay for smooth transition
-            setTimeout(() => {
-                setIsReady(true);
-                loadFeed();
-            }, 50);
+            setIsReady(true);
+            loadFeed();
         });
         return () => task.cancel();
     }, [user?.followingIds, isFocused]);
@@ -191,99 +270,7 @@ export const SocialFeedScreen = () => {
         ? activities.filter(a => a.userId === selectedUserId)
         : activities).filter(a => !hiddenActivityIds.includes(a.id));
 
-    const renderActivityIcon = (type: Activity['type']) => {
-        switch (type) {
-            case 'session_completed': return <BookOpen size={20} color={theme.colors.success} />;
-            case 'streak_repaired': return <Flame size={20} color={theme.colors.error} />;
-            case 'level_up': return <Trophy size={20} color={theme.colors.primary} />;
-            default: return <Award size={20} color={theme.colors.warning} />;
-        }
-    };
 
-    const renderActivityText = (item: Activity) => {
-        switch (item.type) {
-            case 'session_completed':
-                if (item.data.durationSeconds && item.data.durationSeconds < 60) {
-                    return `studied for ${Math.floor(item.data.durationSeconds)} seconds! ⚡`;
-                }
-                const mins = item.data.durationMinutes || 0;
-                if (mins === 0 && !item.data.durationSeconds) {
-                    return `studied for less than a minute! ⚡`;
-                }
-                return `studied for ${mins} minutes! 📚`;
-            case 'streak_repaired':
-                return `repaired their ${item.data.streakCount} day streak! 🔥`;
-            case 'level_up':
-                return `unlocked ${item.data.characterName}! 🥚`;
-            default:
-                return 'did something cool!';
-        }
-    };
-
-    const renderRightActions = (progress: any, dragX: any, itemId: string) => {
-        return (
-            <View style={{ width: 80, height: '100%', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-                <TouchableOpacity
-                    onPress={() => {
-                        setHiddenActivityIds(prev => [...prev, itemId]);
-                        if (user?.uid) {
-                            UserService.hideActivity(user.uid, itemId);
-                        }
-                    }}
-                    style={{
-                        backgroundColor: theme.colors.error,
-                        width: 50,
-                        height: 50,
-                        borderRadius: 25,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        ...theme.shadows.small
-                    }}
-                >
-                    <Trash2 size={24} color="white" />
-                </TouchableOpacity>
-            </View>
-        );
-    };
-
-    const renderItem = ({ item }: { item: Activity }) => (
-        <Swipeable
-            renderRightActions={(p, d) => renderRightActions(p, d, item.id)}
-            onSwipeableRightOpen={() => {
-                setHiddenActivityIds(prev => [...prev, item.id]);
-                if (user?.uid) {
-                    UserService.hideActivity(user.uid, item.id);
-                }
-            }}
-        >
-            <Card style={styles.card} padding="m">
-                <View style={styles.cardHeader}>
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('Profile', { userId: item.userId })}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
-                    >
-                        <Image
-                            source={item.userPhotoURL ? { uri: item.userPhotoURL } : require('../../assets/adaptive-icon.png')}
-                            style={styles.avatar}
-                        />
-                        <View>
-                            <Text style={styles.username}>{item.username}</Text>
-                            <Text style={styles.timestamp}>{item.createdAt.toDate().toLocaleDateString()}</Text>
-                        </View>
-                    </TouchableOpacity>
-                    <View style={[styles.iconContainer, { backgroundColor: theme.colors.background }]}>
-                        {renderActivityIcon(item.type)}
-                    </View>
-                </View>
-
-                <View style={styles.cardBody}>
-                    <Text style={styles.activityText}>
-                        {renderActivityText(item)}
-                    </Text>
-                </View>
-            </Card>
-        </Swipeable>
-    );
 
     return (
         <SafeAreaView style={styles.container}>
@@ -387,7 +374,19 @@ export const SocialFeedScreen = () => {
                         <FlatList
                             data={filteredActivities}
                             keyExtractor={item => item.id}
-                            renderItem={renderItem}
+                            renderItem={({ item }) => (
+                                <FeedItem
+                                    item={item}
+                                    onHide={(id) => {
+                                        setHiddenActivityIds(prev => [...prev, id]);
+                                        if (user?.uid) {
+                                            UserService.hideActivity(user.uid, id);
+                                        }
+                                    }}
+                                    navigation={navigation}
+                                    isHidden={hiddenActivityIds.includes(item.id)}
+                                />
+                            )}
                             contentContainerStyle={styles.listContent}
                             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
                             ListEmptyComponent={
@@ -395,6 +394,8 @@ export const SocialFeedScreen = () => {
                                     <Text style={{ color: '#9CA3AF' }}>No recent activity for this friend.</Text>
                                 </View>
                             }
+                            initialNumToRender={5}
+                            windowSize={5}
                         />
                     )}
                 </>
@@ -551,4 +552,13 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
+    deleteAction: {
+        backgroundColor: theme.colors.error,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...theme.shadows.small
+    }
 });

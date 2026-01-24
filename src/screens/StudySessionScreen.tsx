@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, Dimensions, Platform, InteractionManager } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing } from 'react-native-reanimated';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import * as Notifications from 'expo-notifications';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, Dimensions, Platform, InteractionManager } from 'react-native';
+import { ScrollView, FlatList } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Play, Pause, X, Clock, Settings, ArrowLeft, ChevronDown, Check, Trophy } from 'lucide-react-native';
+import { Logger } from '../utils/logger';
 
 import { useTimer } from '../hooks/useTimer';
 import { CircularProgress } from '../components/CircularProgress';
@@ -12,15 +15,132 @@ import { BrainTree } from '../components/BrainTree';
 import { useUserStore } from '../store/userStore';
 import { StreakService } from '../services/streakService';
 import { SubjectService } from '../services/SubjectService';
+import { StudyNotificationService } from '../services/StudyNotificationService';
 import { Subject, Chapter } from '../types';
 import { theme } from '../theme/theme';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { isStudyCompletedToday, getTodayStr } from '../utils/dateUtils';
 import { SubjectBook } from '../components/SubjectBook';
+import { Skeleton } from '../components/ui/Skeleton';
+import { Slider as AwesomeSlider } from 'react-native-awesome-slider';
 
-const MIN_DURATION = 30; // Minutes
-const DURATIONS = [10, 30, 45, 60, 90, 120];
+const SLIDER_STEPS = [10, 20, 30, 45, 60, 90, 120, 180];
+const MIN_DURATION = SLIDER_STEPS[0];
+const MAX_DURATION = SLIDER_STEPS[SLIDER_STEPS.length - 1];
+
+const Ticks = React.memo(() => {
+    return (
+        <View style={styles.tickContainer}>
+            {SLIDER_STEPS.map((_, i) => (
+                <View
+                    key={i}
+                    style={[
+                        styles.tickDot,
+                        { left: `${(i / (SLIDER_STEPS.length - 1)) * 100}%` }
+                    ]}
+                />
+            ))}
+        </View>
+    );
+});
+
+const DurationSlider = React.memo(({ value, onSlidingComplete, onSlidingStart }: { value: number, onSlidingComplete: (val: number) => void, onSlidingStart: () => void }) => {
+    // Shared Values for UI Thread animation
+    const initialIndex = SLIDER_STEPS.findIndex(s => s === value);
+    const progress = useSharedValue(initialIndex !== -1 ? initialIndex : 2);
+    const min = useSharedValue(0);
+    const max = useSharedValue(SLIDER_STEPS.length - 1);
+
+    // Local State for Text Display
+    const [displayIndex, setDisplayIndex] = useState(initialIndex !== -1 ? initialIndex : 2);
+
+    // Sync only if value changes externally
+    useEffect(() => {
+        const idx = SLIDER_STEPS.findIndex(s => s === value);
+        if (idx !== -1) {
+            progress.value = idx;
+            setDisplayIndex(idx);
+        }
+    }, [value]);
+
+    const updateDisplay = useCallback((idx: number) => {
+        setDisplayIndex(idx);
+    }, []);
+
+    // UI Thread Hysteresis Logic
+    useAnimatedReaction(
+        () => progress.value,
+        (currentValue, previousValue) => {
+            if (previousValue === null) return;
+
+            // Safety: If exact match/snap (e.g. dragging stops or starts), sync
+            // Note: AwesomeSlider progress is float.
+            const rawRounded = Math.round(currentValue);
+            const rounded = Math.max(0, Math.min(rawRounded, SLIDER_STEPS.length - 1)); // Clamp to ensure no overflow (fix 180->10 bug)
+            const diff = Math.abs(currentValue - rawRounded); // Use raw diff for snap check
+
+            // 1. Safety Snap (Close to integer)
+            if (diff < 0.15) {
+                runOnJS(updateDisplay)(rounded);
+                return;
+            }
+
+            // 2. Hysteresis (Sticky) strategy
+            // We need to know the *current* display index to apply hysteresis.
+            // Since we can't easily read JS state here without prop, 
+            // we can stick to a simple rounding with heavy threshold or standard behaviour.
+            // But we can infer "previous committed" or just filter rapid changes.
+            // Let's implement the "Sticky" logic: 
+            // Only flip if we are > 0.75 away from the previous integer we "settled" on?
+            // Simpler: Just rely on the Safety Snap + Rounding, as UI thread is smooth.
+            // The flicker came from JS lag. On UI thread, rounding is 60fps true.
+            runOnJS(updateDisplay)(rounded);
+        },
+        [progress] // dependence
+    );
+
+    return (
+        <View style={styles.sliderContainer}>
+            <Text style={styles.durationValue}>
+                {SLIDER_STEPS[displayIndex] ?? SLIDER_STEPS[0]}
+                <Text style={styles.durationUnit}> min</Text>
+            </Text>
+
+            <View style={styles.sliderTrackContainer}>
+                {/* Visual Ticks - Removed per user request */}
+                {/* <Ticks /> */}
+
+                <AwesomeSlider
+                    progress={progress}
+                    minimumValue={min}
+                    maximumValue={max}
+                    step={0} // Continuous
+                    onSlidingStart={onSlidingStart}
+                    onSlidingComplete={(val) => {
+                        const rawRounded = Math.round(val);
+                        const snappedIndex = Math.max(0, Math.min(rawRounded, SLIDER_STEPS.length - 1));
+                        progress.value = snappedIndex; // Snap visually
+                        runOnJS(onSlidingComplete)(SLIDER_STEPS[snappedIndex]);
+                    }}
+                    theme={{
+                        disableMinTrackTintColor: theme.colors.primary,
+                        maximumTrackTintColor: '#E2E8F0',
+                        minimumTrackTintColor: theme.colors.primary,
+                        bubbleBackgroundColor: 'transparent', // Hide bubble
+                    }}
+                    renderBubble={() => null} // Double ensure no bubble
+                    thumbWidth={24} // Approximate standard size
+                />
+            </View>
+
+            <View style={styles.sliderLabels}>
+                <Text style={styles.sliderLabelText}>{MIN_DURATION}m</Text>
+                <Text style={styles.sliderLabelText}>{MAX_DURATION}m</Text>
+            </View>
+        </View>
+    );
+});
 
 export const StudySessionScreen = () => {
     const navigation = useNavigation<any>();
@@ -28,11 +148,14 @@ export const StudySessionScreen = () => {
     const { user, updateUser } = useUserStore();
 
     // State
-    const [selectedDuration, setSelectedDuration] = useState(MIN_DURATION); // Minutes
+    // Default to user preference (memory) or 30 min
+    const [selectedDuration, setSelectedDuration] = useState(user?.targetDurationMinutes || 30);
+    const [isScrollEnabled, setIsScrollEnabled] = useState(true);
     const [mode, setMode] = useState<'SETUP' | 'FOCUS'>('SETUP');
     const [isCompleted, setIsCompleted] = useState(false);
     const [status, setStatus] = useState(""); // Debug status
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [isLoading, setIsLoading] = useState(true); // Skeleton State
 
     // Subject State
     const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -46,6 +169,15 @@ export const StudySessionScreen = () => {
 
     // Animation for breathing effect
     const breathingScale = useSharedValue(1);
+    const progressShared = useSharedValue(0);
+
+    // Initial Progress Set
+    useEffect(() => {
+        const targetProgress = 1 - (timeLeft / (selectedDuration * 60));
+        // Smoothly interpolate to the new progress over 1 second (since timeLeft updates every second)
+        // Use linear easing to make continuous seconds feel like one smooth flow
+        progressShared.value = withTiming(targetProgress, { duration: 1000, easing: Easing.linear });
+    }, [timeLeft, selectedDuration]);
 
     const animatedTextStyle = useAnimatedStyle(() => ({
         transform: [{ scale: breathingScale.value }]
@@ -66,17 +198,27 @@ export const StudySessionScreen = () => {
         }
     }, [isActive]);
 
-    // Load Subjects
+    // Load Subjects with Skeleton Delay
     useEffect(() => {
         if (user?.uid && isFocused) {
-            const task = InteractionManager.runAfterInteractions(() => {
-                console.log("Fetching subjects for user:", user.uid);
-                SubjectService.getSubjects(user.uid)
-                    .then(setSubjects)
-                    .catch(err => {
-                        console.error(err);
-                        Alert.alert("Offline Error", "Could not load subjects. Please check your connection or try again.");
-                    });
+            const task = InteractionManager.runAfterInteractions(async () => {
+                Logger.log("Fetching subjects for user:", user.uid);
+
+                // Guarantee at least 800ms of skeleton to prevent white flash
+                const minDelay = new Promise(resolve => setTimeout(resolve, 800));
+
+                try {
+                    const [fetchedSubjects] = await Promise.all([
+                        SubjectService.getSubjects(user.uid),
+                        minDelay
+                    ]);
+                    setSubjects(fetchedSubjects);
+                } catch (err) {
+                    Logger.error(err);
+                    Alert.alert("Offline Error", "Could not load subjects. Please check your connection or try again.");
+                } finally {
+                    setIsLoading(false);
+                }
             });
             return () => task.cancel();
         }
@@ -84,15 +226,9 @@ export const StudySessionScreen = () => {
 
     const selectedSubject = subjects.find(s => s.id === selectedSubjectId);
 
-    // Effects
-    useEffect(() => {
-        if (timeLeft === 0 && !isCompleted && mode === 'FOCUS') {
-            handleCompletion();
-        }
-    }, [timeLeft, mode]);
-
     const handleCompletion = async () => {
         setIsCompleted(true);
+        StudyNotificationService.cancelNotifications();
         setStatus("Timer finished. Checking user...");
 
         if (user) {
@@ -108,16 +244,18 @@ export const StudySessionScreen = () => {
 
                 // 1. Update Subject Time
                 if (selectedSubjectId) {
-                    console.log(`[Study] Updating subject ${selectedSubjectId} time...`);
+                    Logger.log(`[Study] Updating subject ${selectedSubjectId} time...`);
                     await SubjectService.updateStudyTime(user.uid, selectedSubjectId, durationInt, selectedChapterId || undefined);
                 }
 
                 // 2. Complete Session (Streak, Coins, Unlocks)
+                // START OPTIMIZATION: Pass 'user' object to skip fetching it again
                 const { unlockedCharacter } = await StreakService.completeSession(
                     user.uid,
                     durationInt,
                     selectedSubjectId || undefined,
-                    selectedChapterId || undefined
+                    selectedChapterId || undefined,
+                    user! // <--- Cached User
                 );
 
                 setStatus(`Saved! Unlocked: ${unlockedCharacter?.name || 'None'}`);
@@ -134,8 +272,9 @@ export const StudySessionScreen = () => {
                     currentStreak: nextStreak,
                     longestStreak: Math.max(longestStreak, nextStreak),
                     lastStudyDate: getTodayStr(),
-                    unlockedCharacterIds: unlockedCharacter ? [...(user.unlockedCharacterIds || []), unlockedCharacter.id] : user.unlockedCharacterIds,
-                    totalCharacters: (user.totalCharacters || 0) + (unlockedCharacter ? 1 : 0)
+                    unlockedCharacterIds: unlockedCharacter ? [...(user!.unlockedCharacterIds || []), unlockedCharacter.id] : user!.unlockedCharacterIds,
+                    totalCharacters: (user!.totalCharacters || 0) + (unlockedCharacter ? 1 : 0),
+                    targetDurationMinutes: selectedDuration // <--- Remember for next time!
                 });
 
                 if (unlockedCharacter) {
@@ -145,26 +284,59 @@ export const StudySessionScreen = () => {
                     setShowSuccessModal(true);
                 }
             } catch (e: any) {
-                console.error(e);
+                Logger.error(e);
                 setStatus(`Error: ${e.message}`);
                 Alert.alert("Error", `Failed to save progress: ${e.message}`);
             }
         } else {
             setStatus("Error: User is NULL");
-            console.error("handleCompletion: User is null");
+            Logger.error("handleCompletion: User is null");
             Alert.alert("Error", "User not logged in. Session cannot be saved.", [
                 { text: "Go to Login", onPress: () => navigation.navigate("Login") }
             ]);
         }
     };
 
-    const handleStart = () => {
+    // Effects
+    useEffect(() => {
+        if (timeLeft === 0 && !isCompleted && mode === 'FOCUS') {
+            handleCompletion();
+        }
+    }, [timeLeft, mode]);
+
+    // Notification Action Handler
+    useEffect(() => {
+        const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+            const actionId = response.actionIdentifier;
+            const minutesLeft = Math.ceil(timeLeft / 60);
+
+            if (actionId === 'PAUSE') {
+                pauseTimer();
+                StudyNotificationService.scheduleStudyNotification(minutesLeft, true);
+            } else if (actionId === 'RESUME') {
+                startTimer();
+                StudyNotificationService.scheduleStudyNotification(minutesLeft, false);
+            }
+        });
+
+        return () => subscription.remove();
+    }, [timeLeft, pauseTimer, startTimer]);
+
+    const handleStart = async () => {
         if (!selectedSubject) {
             Alert.alert("Wait!", "Please select a subject to study.");
             return;
         }
+
+        // Save preference immediately on start (so Give Up doesn't lose it)
+        updateUser({ targetDurationMinutes: selectedDuration });
+
         setMode('FOCUS');
         startTimer();
+
+        // Schedule notification
+        await StudyNotificationService.requestPermissions();
+        await StudyNotificationService.scheduleStudyNotification(Math.ceil(timeLeft / 60));
     };
 
     const handleGiveUp = () => {
@@ -177,6 +349,7 @@ export const StudySessionScreen = () => {
                     pauseTimer();
                     setMode('SETUP');
                     resetTimer();
+                    StudyNotificationService.cancelNotifications();
                 }
             }
         ]);
@@ -193,7 +366,8 @@ export const StudySessionScreen = () => {
         const chapters = selectedSubject?.chapters || [];
 
         return (
-            <SafeAreaView style={styles.container}>
+            <SafeAreaView style={[styles.container, { backgroundColor: '#FFFFFF' }]}>
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF', zIndex: -1 }]} />
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <ArrowLeft size={24} color={theme.colors.text.primary} />
@@ -202,41 +376,58 @@ export const StudySessionScreen = () => {
                     <View style={{ width: 40 }} />
                 </View>
 
-                <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    scrollEnabled={isScrollEnabled}
+                >
 
                     {/* 1. Subject Selection - Horizontal Books */}
                     <Text style={[styles.sectionHeader, { paddingHorizontal: theme.spacing.l }]}>Select Subject</Text>
 
-                    {subjects.length > 0 ? (
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={[styles.subjectList, { paddingHorizontal: theme.spacing.l }]}
-                            style={{ overflow: 'visible', width: '100%' }} // Allow shadows to show
-                            nestedScrollEnabled={true}
-                        >
-                            {subjects.map(subject => (
-                                <SubjectBook
-                                    key={subject.id}
-                                    subject={subject}
-                                    isSelected={selectedSubjectId === subject.id}
-                                    onPress={() => {
-                                        setSelectedSubjectId(subject.id);
-                                        setSelectedChapterId(null);
-                                    }}
-                                />
-                            ))}
-
-                            <TouchableOpacity
-                                style={[styles.subjectBookPlaceholder]}
-                                onPress={() => navigation.navigate('Subjects')}
-                            >
-                                <View style={styles.placeholderDashed}>
-                                    <Text style={{ fontSize: 24, color: theme.colors.text.disabled }}>+</Text>
-                                    <Text style={{ fontSize: 12, color: theme.colors.text.disabled, marginTop: 4 }}>Add New</Text>
-                                </View>
-                            </TouchableOpacity>
-                        </ScrollView>
+                    {isLoading ? (
+                        <View style={{ height: 260, flexDirection: 'row', paddingHorizontal: theme.spacing.l, gap: 16 }}>
+                            {/* Skeleton Books */}
+                            <View>
+                                <Skeleton width={180} height={240} borderRadius={16} />
+                            </View>
+                            <View>
+                                <Skeleton width={180} height={240} borderRadius={16} />
+                            </View>
+                        </View>
+                    ) : subjects.length > 0 ? (
+                        <View style={{ height: 260, width: '100%' }}>
+                            <FlatList<Subject>
+                                data={subjects}
+                                extraData={selectedSubjectId}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ paddingHorizontal: theme.spacing.l, paddingVertical: 20 }}
+                                keyExtractor={(item) => item.id}
+                                renderItem={({ item }: { item: Subject }) => (
+                                    <SubjectBook
+                                        subject={item}
+                                        isSelected={selectedSubjectId === item.id}
+                                        onPress={() => {
+                                            setSelectedSubjectId(item.id);
+                                            setSelectedChapterId(null);
+                                        }}
+                                    />
+                                )}
+                                ListFooterComponent={
+                                    <TouchableOpacity
+                                        style={[styles.subjectBookPlaceholder]}
+                                        onPress={() => navigation.navigate('Subjects')}
+                                    >
+                                        <View style={styles.placeholderDashed}>
+                                            <Text style={{ fontSize: 24, color: theme.colors.text.disabled }}>+</Text>
+                                            <Text style={{ fontSize: 12, color: theme.colors.text.secondary, marginTop: 4 }}>Add New</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                }
+                            />
+                        </View>
                     ) : (
                         <TouchableOpacity
                             style={[styles.emptySubjectCard, { marginHorizontal: theme.spacing.l }]}
@@ -254,7 +445,6 @@ export const StudySessionScreen = () => {
                                 horizontal
                                 showsHorizontalScrollIndicator={false}
                                 contentContainerStyle={{ gap: 8, paddingHorizontal: theme.spacing.l }}
-                                nestedScrollEnabled={true}
                             >
                                 <TouchableOpacity
                                     style={[styles.chip, !selectedChapterId && styles.chipSelected]}
@@ -285,25 +475,26 @@ export const StudySessionScreen = () => {
 
                     {/* 3. Duration Selection */}
                     <Text style={[styles.sectionHeader, { marginTop: 24, paddingHorizontal: theme.spacing.l }]}>Duration</Text>
-                    <View style={[styles.durationGrid, { paddingHorizontal: theme.spacing.l }]}>
-                        {DURATIONS.map((mins) => (
-                            <TouchableOpacity
-                                key={mins}
-                                onPress={() => setSelectedDuration(mins)}
-                                style={[
-                                    styles.durationPill,
-                                    selectedDuration === mins && styles.durationPillSelected
-                                ]}
-                            >
-                                <Text style={[
-                                    styles.durationPillText,
-                                    selectedDuration === mins && styles.durationPillTextSelected
-                                ]}>
-                                    {mins}m
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                    {isLoading ? (
+                        <View style={{ paddingHorizontal: theme.spacing.l, flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                            {/* Skeleton Durations */}
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <Skeleton key={i} width='30%' height={50} borderRadius={16} />
+                            ))}
+                        </View>
+                    ) : (
+                        <View style={{ paddingHorizontal: theme.spacing.l, marginTop: 8 }}>
+                            <DurationSlider
+                                value={selectedDuration}
+                                onSlidingComplete={(val) => {
+                                    setSelectedDuration(val);
+                                    setIsScrollEnabled(true);
+                                }}
+                                onSlidingStart={() => setIsScrollEnabled(false)}
+                            />
+                        </View>
+                    )}
+
 
                     {/* Dev Timer (Hidden for Prod) */}
                     {/* <TouchableOpacity
@@ -313,16 +504,6 @@ export const StudySessionScreen = () => {
                         <Text style={{ fontSize: 12, color: theme.colors.text.secondary }}>Dev: 10s Timer (1 XP)</Text>
                     </TouchableOpacity> */}
 
-                    <View style={{ paddingHorizontal: theme.spacing.l }}>
-                        <Card style={styles.tipCard}>
-                            <View style={styles.tipIconBox}>
-                                <Clock size={16} color={theme.colors.primary} />
-                            </View>
-                            <Text style={styles.tipText}>
-                                <Text style={{ fontWeight: '700', color: theme.colors.primary }}>Pro Tip:</Text> 30+ min sessions count towards your daily streak!
-                            </Text>
-                        </Card>
-                    </View>
 
                     <View style={{ height: 120 }} />
                 </ScrollView>
@@ -345,9 +526,10 @@ export const StudySessionScreen = () => {
 
     // FOCUS MODE
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: '#FFFFFF' }]}>
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF', zIndex: -2 }]} />
             <LinearGradient
-                colors={['#FFFFFF', '#F0F9FF']} // Light theme
+                colors={['rgba(255,255,255,0)', '#F0F9FF']} // Transparent to Light Blue
                 style={StyleSheet.absoluteFill}
             />
 
@@ -365,7 +547,7 @@ export const StudySessionScreen = () => {
             <View style={styles.timerContainer}>
                 {/* Tree Circle Container */}
                 <View style={styles.treeCircle}>
-                    <BrainTree progress={progress} height={280} width={280} />
+                    <BrainTree progress={progressShared} height={280} width={280} />
                 </View>
 
                 {/* Time & Status Below */}
@@ -453,7 +635,9 @@ export const StudySessionScreen = () => {
             )}
         </SafeAreaView>
     );
-};
+}
+
+
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
@@ -551,63 +735,74 @@ const styles = StyleSheet.create({
     },
     chipText: {
         fontSize: 14,
-        color: '#4B5563',
+        color: '#4B5563', // Explicit Dark Grey
         fontWeight: '500',
     },
     chipTextSelected: {
         color: theme.colors.primary,
         fontWeight: '700',
     },
-    durationGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-    },
-    durationPill: {
-        flexGrow: 1,
-        flexBasis: '30%',
-        paddingVertical: 14,
-        borderRadius: 16,
-        backgroundColor: '#FFF',
+    sliderContainer: {
+        backgroundColor: '#EEF2FF', // Indigo 50 - Premium tint
+        padding: 24,
+        borderRadius: 24,
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        ...theme.shadows.small,
-    },
-    durationPillSelected: {
-        backgroundColor: '#EFF6FF',
-        borderColor: theme.colors.primary,
+        // borderWidth: 1, // Removed
+        // borderColor: '#F1F5F9', // Removed
+        height: 180, // Increased height to prevent overlap
+        justifyContent: 'center', // Center content vertically
         ...theme.shadows.medium,
     },
-    durationPillText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#4B5563',
-    },
-    durationPillTextSelected: {
+    durationValue: {
+        fontSize: 42,
+        fontWeight: '800',
         color: theme.colors.primary,
-        fontWeight: '700',
+        marginBottom: 12,
+        fontVariant: ['tabular-nums']
     },
-    tipCard: {
-        marginTop: 32,
+    durationUnit: {
+        fontSize: 18,
+        fontWeight: '500',
+        color: '#94A3B8',
+        marginBottom: 6,
+    },
+    slider: {
+        width: '100%',
+        height: 40,
+        zIndex: 2, // Ensure thumb is above ticks
+    },
+    sliderTrackContainer: {
+        width: '100%',
+        justifyContent: 'center',
+    },
+    tickContainer: {
+        position: 'absolute',
+        left: 15,
+        right: 15,
+        height: 40, // Match slider height
         flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 12,
-        backgroundColor: '#F8FAFC',
-        padding: 16,
-        borderRadius: 16,
-        borderWidth: 0,
+        alignItems: 'center',
+        zIndex: 1, // Behind slider
     },
-    tipIconBox: {
-        padding: 8,
-        backgroundColor: '#E0F2FE',
-        borderRadius: 8,
+    tickDot: {
+        position: 'absolute',
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#E2E8F0', // Lighter grey dot
+        transform: [{ translateX: -2 }] // Center the dot on the exact % position
     },
-    tipText: {
-        flex: 1,
-        fontSize: 13,
-        color: '#64748B',
-        lineHeight: 20,
+    sliderLabels: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+        paddingHorizontal: 10,
+        marginTop: 12 // Increased spacing
+    },
+    sliderLabelText: {
+        fontSize: 12,
+        color: '#94A3B8',
+        fontWeight: '600'
     },
     bottomBar: {
         position: 'absolute',

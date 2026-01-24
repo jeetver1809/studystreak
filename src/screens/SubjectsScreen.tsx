@@ -37,13 +37,28 @@ export const SubjectsScreen = () => {
     const [isModalVisible, setModalVisible] = useState(false);
     const [newSubjectName, setNewSubjectName] = useState('');
     const [selectedColor, setSelectedColor] = useState(BOOK_COLORS[0]);
-    const [isReady, setIsReady] = useState(false); // New state for interactions
+    const hasLoaded = React.useRef(false); // Track if we've already loaded data once
 
     const fetchSubjects = async () => {
         if (!user) return;
+
+        // Only show skeleton on first load
+        const showSkeleton = !hasLoaded.current;
+
+        if (showSkeleton) {
+            setLoading(true);
+        }
+
+        // Guarantee at least 800ms of skeleton ONLY if showing skeleton
+        const minDelay = showSkeleton ? new Promise(resolve => setTimeout(resolve, 800)) : Promise.resolve();
+
         try {
-            const data = await SubjectService.getSubjects(user.uid);
+            const [data] = await Promise.all([
+                SubjectService.getSubjects(user.uid),
+                minDelay
+            ]);
             setSubjects(data);
+            hasLoaded.current = true; // Mark as loaded
         } catch (error) {
             console.error("Error fetching subjects:", error);
         } finally {
@@ -53,13 +68,9 @@ export const SubjectsScreen = () => {
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => {
-            // Tiny delay for smooth transition
-            setTimeout(() => {
-                setIsReady(true);
-                if (isFocused) {
-                    fetchSubjects();
-                }
-            }, 50);
+            if (isFocused) {
+                fetchSubjects();
+            }
         });
         return () => task.cancel();
     }, [user, isFocused]);
@@ -122,7 +133,7 @@ export const SubjectsScreen = () => {
     // Combine subjects with the "Add Button" item
     const dataWithAddButton: (Subject | 'ADD_BUTTON')[] = [...subjects, 'ADD_BUTTON'];
 
-    if (!isReady) {
+    if (loading) {
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.header}>

@@ -9,7 +9,7 @@ interface ScreenGradientProps {
 export const ScreenGradient: React.FC<ScreenGradientProps> = ({ style }) => {
     return (
         <LinearGradient
-            colors={['#FFFFFF', '#F0F9FF']}
+            colors={['rgba(255,255,255,0)', '#F0F9FF']}
             style={[StyleSheet.absoluteFill, { zIndex: -1 }, style]}
         />
     );

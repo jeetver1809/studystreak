@@ -6,7 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft, Edit2, X } from 'lucide-react-native';
 import { useUserStore } from '../store/userStore';
 import { AuthService } from '../services/authService';
-import { NotificationService } from '../services/notificationService';
+import { StudyNotificationService } from '../services/StudyNotificationService';
 import { theme } from '../theme/theme';
 
 export const SettingsScreen = () => {
@@ -36,8 +36,8 @@ export const SettingsScreen = () => {
             const hour = selectedDate.getHours();
             const minute = selectedDate.getMinutes();
 
-            await NotificationService.registerForPushNotificationsAsync();
-            await NotificationService.scheduleDailyReminder(hour, minute);
+            await StudyNotificationService.registerForPushNotificationsAsync();
+            await StudyNotificationService.scheduleDailyReminder(hour, minute);
 
             Alert.alert("Reminder Set!", `We'll buzz you at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} daily.`);
         }

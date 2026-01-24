@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, Image, Platform, TextInput, LayoutAnimation, UIManager, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, Image, Platform, TextInput, LayoutAnimation, UIManager, TouchableOpacity, InteractionManager } from 'react-native';
 import { BlurView } from 'expo-blur'; // Glass Effect
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, Easing, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, Easing, runOnJS, interpolate, Extrapolation, Layout, FadeInRight, FadeOutRight } from 'react-native-reanimated';
+import { Image as ExpoImage } from 'expo-image';
 import { GestureDetector, Gesture, TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler'; // Use GH Touchable for Drawer
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
@@ -18,14 +19,17 @@ import { Coins, AlertTriangle } from 'lucide-react-native';
 import { StreakService } from '../services/streakService';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenGradient } from '../components/ui/ScreenGradient';
+import { Skeleton } from '../components/ui/Skeleton';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
+import { Logger } from '../utils/logger';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 if (Platform.OS === 'android') {
     if (UIManager.setLayoutAnimationEnabledExperimental) {
@@ -42,6 +46,19 @@ export const HomeScreen = () => {
     const [isLevelExpanded, setIsLevelExpanded] = React.useState(false); // Header Level
     const [newGoal, setNewGoal] = React.useState('');
     const insets = useSafeAreaInsets(); // Get safe area insets
+    const [isLoading, setIsLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        let timer: NodeJS.Timeout;
+        const task = InteractionManager.runAfterInteractions(() => {
+            // Ensure at least 500ms for smoothness
+            timer = setTimeout(() => setIsLoading(false), 500);
+        });
+        return () => {
+            task.cancel();
+            if (timer) clearTimeout(timer);
+        };
+    }, []);
 
     // Reanimated Shared Values
     const translateX = useSharedValue(-DRAWER_WIDTH);
@@ -101,6 +118,12 @@ export const HomeScreen = () => {
         };
     });
 
+    const animatedBlurStyle = useAnimatedStyle(() => ({
+        opacity: interpolate(scrollY.value, [0, 50], [0, 1], Extrapolation.CLAMP),
+        // More translucent fallback for that "Glass" feel
+        backgroundColor: Platform.OS === 'android' ? 'rgba(255, 255, 255, 0.5)' : 'transparent'
+    }));
+
     const confettiRef = React.useRef<any>(null);
 
     const handleRepairStreak = async () => {
@@ -128,9 +151,9 @@ export const HomeScreen = () => {
     React.useEffect(() => {
         const checkAndSync = async () => {
             const today = getTodayStr(); // Local YYYY-MM-DD
-            // Should sync if it's the same day, regardless of current value, to ensure consistency
-            if (user.lastStudyDate === today) {
-                console.log("Syncing Today's Minutes from history...");
+            // Sync if it's the same day OR if we have stale "today" data (need to reset to 0)
+            if (user.lastStudyDate === today || (user.todayStudyMinutes || 0) > 0) {
+                Logger.log("Syncing Today's Minutes (Date match or Stale data detected)...");
                 const result = await StreakService.syncTodayProgress(user.uid);
                 updateUser({
                     todayStudyMinutes: result.today,
@@ -146,12 +169,46 @@ export const HomeScreen = () => {
         if (user) {
             CharacterProgressionService.syncXPWithHistory(user).then((update) => {
                 if (update) {
-                    console.log("[HomeScreen] XP Synced. Updating local user...");
+                    Logger.log("[HomeScreen] XP Synced. Updating local user...");
                     updateUser(update);
                 }
             });
         }
     }, [user?.totalStudyMinutes]);
+
+    if (isLoading) {
+        return (
+            <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+                <ScreenGradient />
+                <SafeAreaView style={{ flex: 1 }}>
+                    <View style={{ padding: theme.spacing.l, paddingTop: headerTopPadding + 20 }}>
+                        {/* Header Skeleton */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 }}>
+                            <View style={{ flexDirection: 'row', gap: 12 }}>
+                                <Skeleton width={48} height={48} borderRadius={24} />
+                                <View>
+                                    <Skeleton width={100} height={20} borderRadius={4} style={{ marginBottom: 6 }} />
+                                    <Skeleton width={60} height={16} borderRadius={4} />
+                                </View>
+                            </View>
+                            <Skeleton width={80} height={36} borderRadius={18} />
+                        </View>
+
+                        {/* Character/Main Content Skeleton */}
+                        <View style={{ alignItems: 'center', marginVertical: 20 }}>
+                            <Skeleton width={200} height={300} borderRadius={20} />
+                        </View>
+
+                        {/* Stats Row Skeleton */}
+                        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                            <Skeleton style={{ flex: 1, height: 100, borderRadius: 16 }} />
+                            <Skeleton style={{ flex: 1, height: 100, borderRadius: 16 }} />
+                        </View>
+                    </View>
+                </SafeAreaView>
+            </View>
+        );
+    }
 
     return (
         <GestureDetector gesture={panGesture}>
@@ -173,10 +230,11 @@ export const HomeScreen = () => {
                     <View style={[StyleSheet.absoluteFill, styles.modalOverlay]}>
                         <View style={styles.modalCard}>
                             <View style={styles.coinImageContainer}>
-                                <Image
+                                <ExpoImage
                                     source={require('../images/brain_coin.png')}
                                     style={styles.coinImage}
-                                    resizeMode="contain"
+                                    contentFit="contain"
+                                    transition={200}
                                 />
                             </View>
 
@@ -217,11 +275,7 @@ export const HomeScreen = () => {
                         intensity={Platform.OS === 'android' ? 70 : 80}
                         tint="light"
                         experimentalBlurMethod="dimezisBlurView"
-                        style={[StyleSheet.absoluteFill, useAnimatedStyle(() => ({
-                            opacity: interpolate(scrollY.value, [0, 50], [0, 1], Extrapolation.CLAMP),
-                            // More translucent fallback for that "Glass" feel
-                            backgroundColor: Platform.OS === 'android' ? 'rgba(255, 255, 255, 0.5)' : 'transparent'
-                        }))]}
+                        style={[StyleSheet.absoluteFill, animatedBlurStyle]}
                     />
                     {/* Left Side: Hambuger + Level */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -230,25 +284,32 @@ export const HomeScreen = () => {
                         </TouchableOpacity>
 
                         {/* Level Indicator (Moved & Resized) */}
-                        <TouchableOpacity
+                        {/* Level Indicator (Moved & Resized) */}
+                        <AnimatedTouchableOpacity
                             style={[styles.statBadge, isLevelExpanded && styles.statBadgeExpanded]}
                             onPress={() => {
-                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                                 setIsLevelExpanded(!isLevelExpanded);
                             }}
                             activeOpacity={0.7}
+                            layout={Layout.springify().damping(15).stiffness(120)}
                         >
-                            <Star size={16} color="#3B82F6" fill="#3B82F6" />
-                            <Text style={styles.statText}>Lvl {levelProgress.currentLevel}</Text>
+                            <Animated.View layout={Layout.springify()} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Star size={16} color="#3B82F6" fill="#3B82F6" />
+                                <Text style={styles.statText}>Lvl {levelProgress.currentLevel}</Text>
+                            </Animated.View>
 
                             {isLevelExpanded && (
-                                <View style={styles.xpContainer}>
+                                <Animated.View
+                                    style={styles.xpContainer}
+                                    entering={FadeInRight.duration(200)}
+                                    exiting={FadeOutRight.duration(150)}
+                                >
                                     <View style={styles.xpBarBg}>
                                         <View style={[styles.xpBarFill, { width: `${levelProgress.progressPercent}%` }]} />
                                     </View>
-                                </View>
+                                </Animated.View>
                             )}
-                        </TouchableOpacity>
+                        </AnimatedTouchableOpacity>
                     </View>
 
                     <View style={styles.headerRight}>
@@ -265,7 +326,7 @@ export const HomeScreen = () => {
 
                         <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.profileBadge}>
                             {user.photoURL ? (
-                                <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+                                <ExpoImage source={{ uri: user.photoURL }} style={styles.avatar} transition={200} />
                             ) : (
                                 <View style={[styles.avatar, { backgroundColor: theme.colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
                                     <Users size={14} color="#FFF" />
@@ -307,7 +368,7 @@ export const HomeScreen = () => {
                                 <View style={styles.dailyGoalContainer}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                                         <Text style={styles.dailyGoalText}>
-                                            Today: {Math.floor(user.todayStudyMinutes || 0)}m {Math.round(((user.todayStudyMinutes || 0) % 1) * 60)}s / {user.targetDurationMinutes || 30}m
+                                            Today: {Math.floor(user.todayStudyMinutes || 0)}m / {user.targetDurationMinutes || 30}m
                                         </Text>
                                         <TouchableOpacity onPress={() => setIsEditGoalVisible(true)} style={{ padding: 4 }}>
                                             <Edit2 size={14} color="rgba(255,255,255,0.8)" />
@@ -395,7 +456,7 @@ export const HomeScreen = () => {
                             <Text style={styles.statValue}>
                                 {(user.totalStudyMinutes || 0) > 60
                                     ? `${Math.floor((user.totalStudyMinutes || 0) / 60)}h ${Math.floor((user.totalStudyMinutes || 0) % 60)}m`
-                                    : `${Math.floor(user.totalStudyMinutes || 0)}m ${Math.round(((user.totalStudyMinutes || 0) % 1) * 60)}s`
+                                    : `${Math.floor(user.totalStudyMinutes || 0)}m`
                                 }
                             </Text>
                             <Text style={styles.statLabel}>Total Time</Text>
@@ -511,13 +572,13 @@ export const HomeScreen = () => {
                                     </View>
 
                                     <ScrollView contentContainerStyle={styles.drawerContent}>
-                                        <DrawerItem icon={Users} label="Social Feed" color={theme.colors.success} onPress={() => { toggleMenu(); navigation.navigate('SocialFeed'); }} />
-                                        <DrawerItem icon={Book} label="Subjects" color={theme.colors.primary} onPress={() => { toggleMenu(); navigation.navigate('Subjects'); }} />
-                                        <DrawerItem icon={BarChart2} label="Analytics" color={theme.colors.primary} onPress={() => { toggleMenu(); navigation.navigate('Analytics'); }} />
-                                        <DrawerItem icon={Sword} label="Characters" color={theme.colors.accent} onPress={() => { toggleMenu(); navigation.navigate('Party'); }} />
-                                        <DrawerItem icon={Trophy} label="Leaderboard" color={theme.colors.warning} onPress={() => { toggleMenu(); navigation.navigate('Leaderboard'); }} />
+                                        <DrawerItem icon={Users} label="Social Feed" color={theme.colors.success} onPress={() => { toggleMenu(); InteractionManager.runAfterInteractions(() => navigation.navigate('SocialFeed')); }} />
+                                        <DrawerItem icon={Book} label="Subjects" color={theme.colors.primary} onPress={() => { toggleMenu(); InteractionManager.runAfterInteractions(() => navigation.navigate('Subjects')); }} />
+                                        <DrawerItem icon={BarChart2} label="Analytics" color={theme.colors.primary} onPress={() => { toggleMenu(); InteractionManager.runAfterInteractions(() => navigation.navigate('Analytics')); }} />
+                                        <DrawerItem icon={Sword} label="Characters" color={theme.colors.accent} onPress={() => { toggleMenu(); InteractionManager.runAfterInteractions(() => navigation.navigate('Party')); }} />
+                                        <DrawerItem icon={Trophy} label="Leaderboard" color={theme.colors.warning} onPress={() => { toggleMenu(); InteractionManager.runAfterInteractions(() => navigation.navigate('Leaderboard')); }} />
                                         <View style={styles.divider} />
-                                        <DrawerItem icon={Settings} label="Settings" color={theme.colors.text.secondary} onPress={() => { toggleMenu(); navigation.navigate('Settings'); }} />
+                                        <DrawerItem icon={Settings} label="Settings" color={theme.colors.text.secondary} onPress={() => { toggleMenu(); InteractionManager.runAfterInteractions(() => navigation.navigate('Settings')); }} />
                                     </ScrollView>
                                 </SafeAreaView>
                             </Animated.View>
@@ -533,8 +594,9 @@ const DrawerItem = ({ icon: Icon, label, color, onPress }: any) => (
     <GHTouchableOpacity
         style={styles.drawerItem}
         onPress={() => {
-            // Instant feedback
+            // instant feedback
             requestAnimationFrame(() => {
+                // Wait for animation frame then process
                 onPress();
             });
         }}

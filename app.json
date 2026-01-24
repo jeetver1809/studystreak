@@ -3,7 +3,7 @@
     "name": "studystreak",
     "slug": "studystreak",
     "scheme": "studystreak",
-    "version": "1.1.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,6 +23,11 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.studystreak.app"
+    },
+    "notification": {
+      "icon": "./assets/icon.png",
+      "color": "#4F46E5",
+      "iosDisplayInForeground": true
     },
     "web": {
       "favicon": "./assets/favicon.png"

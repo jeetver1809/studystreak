@@ -14,6 +14,21 @@ import { Avatar } from '../components/ui/Avatar';
 import { getTodayStr } from '../utils/dateUtils';
 import { LinearGradient } from 'expo-linear-gradient';
 
+// Memoized Item
+const LeaderboardItem = React.memo(({ item, index, navigation }: { item: User, index: number, navigation: any }) => (
+    <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Profile', { userId: item.uid })}>
+        <Text style={styles.rank}>#{index + 1}</Text>
+        <View style={styles.info}>
+            <Text style={styles.username}>{item.username}</Text>
+            <Text style={styles.stats}>{item.totalCharacters} Chars Unlocked</Text>
+        </View>
+        <View style={styles.streakContainer}>
+            <Text style={styles.streak}>{item.longestStreak}</Text>
+            <Flame size={16} color="#FF4500" fill="#FF4500" />
+        </View>
+    </TouchableOpacity>
+));
+
 export const LeaderboardScreen = () => {
     const navigation = useNavigation<any>();
     const isFocused = useIsFocused();
@@ -23,11 +38,8 @@ export const LeaderboardScreen = () => {
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => {
-            // Tiny delay for smooth transition
-            setTimeout(() => {
-                setIsReady(true);
-                fetchLeaderboard();
-            }, 50);
+            setIsReady(true);
+            fetchLeaderboard();
         });
         return () => task.cancel();
     }, [isFocused]);
@@ -58,7 +70,7 @@ export const LeaderboardScreen = () => {
                     const lastDate = parseISO(user.lastStudyDate);
                     const diff = differenceInDays(today, lastDate);
                     // allow today (0) and yesterday (1). If 2+, it's stale.
-                    if (diff > 1 && !user.frozenStreak) {
+                    if (diff > 1) {
                         effectiveStreak = 0;
                     }
                 } else {
@@ -113,19 +125,7 @@ export const LeaderboardScreen = () => {
         );
     }
 
-    const renderItem = ({ item, index }: { item: User, index: number }) => (
-        <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Profile', { userId: item.uid })}>
-            <Text style={styles.rank}>#{index + 1}</Text>
-            <View style={styles.info}>
-                <Text style={styles.username}>{item.username}</Text>
-                <Text style={styles.stats}>{item.totalCharacters} Chars Unlocked</Text>
-            </View>
-            <View style={styles.streakContainer}>
-                <Text style={styles.streak}>{item.longestStreak}</Text>
-                <Flame size={16} color="#FF4500" fill="#FF4500" />
-            </View>
-        </TouchableOpacity>
-    );
+
 
     return (
         <SafeAreaView style={styles.container}>
@@ -157,7 +157,7 @@ export const LeaderboardScreen = () => {
 
             <FlatList
                 data={users.slice(3)} // List the rest
-                renderItem={({ item, index }) => renderItem({ item, index: index + 3 })} // Adjust index
+                renderItem={({ item, index }) => <LeaderboardItem item={item} index={index + 3} navigation={navigation} />}
                 keyExtractor={(item, index) => item.uid || index.toString()}
                 refreshing={loading}
                 onRefresh={fetchLeaderboard}

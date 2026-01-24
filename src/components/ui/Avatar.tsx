@@ -1,4 +1,5 @@
-import { View, Image, StyleSheet, ViewStyle, ImageStyle, StyleProp } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { View, StyleSheet, ViewStyle, ImageStyle, StyleProp } from 'react-native';
 import { User } from 'lucide-react-native';
 import { theme } from '../../theme/theme';
 
@@ -12,13 +13,15 @@ export const Avatar: React.FC<AvatarProps> = ({ source, size = 60, style }) => {
     // If we have a source URL, show the image
     if (source) {
         return (
-            <Image
+            <ExpoImage
                 source={{ uri: source }}
                 style={[
                     styles.avatar,
                     { width: size, height: size, borderRadius: size / 2 },
                     style
                 ]}
+                transition={200}
+                contentFit="cover"
             />
         );
     }
@@ -29,7 +32,7 @@ export const Avatar: React.FC<AvatarProps> = ({ source, size = 60, style }) => {
             style={[
                 styles.fallback,
                 { width: size, height: size, borderRadius: size / 2 },
-                style
+                style as StyleProp<ViewStyle>
             ]}
         >
             <User size={size * 0.5} color="#94A3B8" />

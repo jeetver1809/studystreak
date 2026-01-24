@@ -269,7 +269,7 @@ export const ProfileScreen = () => {
                             <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
                                 <Users size={20} color={theme.colors.primary} />
                             </View>
-                            <Text style={styles.statValue}>{profileUser.followersCount || 0}</Text>
+                            <Text style={styles.statValue}>{profileUser.followersIds?.length ?? profileUser.followersCount ?? 0}</Text>
                             <Text style={styles.statLabel}>Followers</Text>
                         </TouchableOpacity>
 
@@ -307,8 +307,8 @@ export const ProfileScreen = () => {
                             <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
                                 <Trophy size={20} color="#D97706" />
                             </View>
-                            <Text style={styles.statValue}>{profileUser.currentStreak}</Text>
-                            <Text style={styles.statLabel}>Day Streak</Text>
+                            <Text style={styles.statValue}>{profileUser.longestStreak}</Text>
+                            <Text style={styles.statLabel}>Highest Streak</Text>
                         </View>
                     </View>
                 </View>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuthListener } from '../hooks/useAuthListener';
 import { useUserStore } from '../store/userStore';
@@ -21,7 +21,7 @@ import { VerifyEmailScreen } from '../screens/auth/VerifyEmailScreen';
 import { SubjectsScreen } from '../screens/SubjectsScreen';
 import { SubjectDetailsScreen } from '../screens/SubjectDetailsScreen';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export const RootNavigator = () => {
     const { isNewUser } = useAuthListener();
@@ -47,9 +47,10 @@ export const RootNavigator = () => {
         <Stack.Navigator
             screenOptions={{
                 headerShown: false,
-                ...TransitionPresets.SlideFromRightIOS, // Smoother transitions
+                contentStyle: { backgroundColor: '#FFFFFF' }, // Force white background
                 gestureEnabled: true,
-                gestureDirection: 'horizontal',
+                animation: 'none', // Globally disable animations to prevent rendering/color artifacts
+                // Transition presets are handled natively by default
             }}
         >
             {user ? (
@@ -62,7 +63,14 @@ export const RootNavigator = () => {
                         <Stack.Screen name="Subjects" component={SubjectsScreen} />
                         <Stack.Screen name="SubjectDetails" component={SubjectDetailsScreen} />
                         <Stack.Screen name="Analytics" component={AnalyticsScreen} />
-                        <Stack.Screen name="StudySession" component={StudySessionScreen} />
+                        <Stack.Screen
+                            name="StudySession"
+                            component={StudySessionScreen}
+                            options={{
+                                contentStyle: { backgroundColor: '#FFFFFF' },
+                                animation: 'none', // Disable sliding to prevent ghosting
+                            }}
+                        />
                         <Stack.Screen name="Unlock" component={UnlockScreen} />
                         <Stack.Screen name="Party" component={PartyScreen} />
                         <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />

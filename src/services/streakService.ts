@@ -5,37 +5,33 @@ import { getTodayStr, isStudyCompletedToday } from '../utils/dateUtils';
 import { getCharacterForStreak } from '../utils/characters';
 import { ActivityService } from './activityService';
 import { CharacterProgressionService } from './CharacterProgressionService';
+import { Logger } from '../utils/logger';
 
 export const StreakService = {
-    async completeSession(userId: string, durationSeconds: number, subjectId?: string, chapterId?: string): Promise<{ unlockedCharacter?: Character }> {
-        console.log("[StreakService] Step 0: Start Session Completion");
-        console.log(`[StreakService] Params: userId=${userId}, duration=${durationSeconds}s, subject=${subjectId}`);
+    async completeSession(userId: string, durationSeconds: number, subjectId?: string, chapterId?: string, cachedUser?: User): Promise<{ unlockedCharacter?: Character }> {
+        Logger.log("[StreakService] Step 0: Start Session Completion");
 
-        const currentUser = auth.currentUser;
-        if (!userId) {
-            console.error("[StreakService] ERROR: No userId provided.");
-            throw new Error("Invalid User ID: Cannot save session.");
+        // 1. Use Cached User if available (Optimistic)
+        let userData: User;
+
+        if (cachedUser) {
+            Logger.log("[StreakService] Using Cached User State (Optimistic)");
+            userData = cachedUser;
+        } else {
+            Logger.log("[StreakService] Step 1: Fetching User State (Network)...");
+            const userRef = doc(db, 'users', userId);
+            const userSnap = await getDoc(userRef);
+            if (!userSnap.exists()) {
+                Logger.error("[StreakService] ERROR: User document missing from DB!");
+                throw new Error("User profile not found in database.");
+            }
+            userData = userSnap.data() as User;
         }
-
-        if (currentUser?.uid !== userId) {
-            console.warn(`[StreakService] AUTH WARNING: CurrentUser (${currentUser?.uid}) != TargetUser (${userId})`);
-        }
-
-        const today = getTodayStr();
-        console.log(`[StreakService] Today's Date String: ${today}`);
 
         const userRef = doc(db, 'users', userId);
+        const today = getTodayStr();
 
-        // 1. Fetch current user state (READ FIRST)
-        console.log("[StreakService] Step 1: Fetching User State...");
-        const userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) {
-            console.error("[StreakService] ERROR: User document missing from DB!");
-            throw new Error("User profile not found in database.");
-        }
-        const userData = userSnap.data() as User;
-        console.log("[StreakService] Step 1: User fetched successfully.");
-        console.log(`[StreakService] Current DB State -> Streak: ${userData.currentStreak}, LastStudy: ${userData.lastStudyDate}`);
+        Logger.log(`[StreakService] Current DB State -> Streak: ${userData.currentStreak}, LastStudy: ${userData.lastStudyDate}`);
 
         // 3. Calculate Coins & Time
         const currentBanked = userData.bankedSeconds || 0;
@@ -44,19 +40,19 @@ export const StreakService = {
         const newBankedSeconds = totalSeconds % 60;
         const sessionMinutes = durationSeconds / 60; // Precise minutes for tracking
 
-        console.log(`[StreakService] Result: +${earnedCoins} Coins, +${sessionMinutes.toFixed(2)} mins`);
+        Logger.log(`[StreakService] Result: +${earnedCoins} Coins, +${sessionMinutes.toFixed(2)} mins`);
 
         // 4. Update Streak
         const alreadyStudied = isStudyCompletedToday(userData.lastStudyDate);
 
         if (alreadyStudied) {
-            console.log("[StreakService] Already studied today. Accumulating time.");
+            Logger.log("[StreakService] Already studied today. Accumulating time.");
 
             // Log Session (Fire & Forget)
             addDoc(collection(db, 'study_sessions'), {
                 userId, date: today, startTime: Timestamp.now(), endTime: Timestamp.now(), durationSeconds,
                 subjectId: subjectId || null, chapterId: chapterId || null
-            }).catch(e => console.error("Session Log Error:", e));
+            }).catch(e => Logger.error("Session Log Error:", e));
 
             // Update User Stats (using setDoc with merge to ensure characterXP map is created if missing)
             setDoc(userRef, {
@@ -71,7 +67,7 @@ export const StreakService = {
             return { unlockedCharacter: undefined };
         }
 
-        console.log("[StreakService] First session of the day.");
+        Logger.log("[StreakService] First session of the day.");
         const unlockedIds = Array.isArray(userData.unlockedCharacterIds) ? userData.unlockedCharacterIds : [];
         const currentStreak = userData.currentStreak || 0;
         const longestStreak = userData.longestStreak || 0;
@@ -112,20 +108,20 @@ export const StreakService = {
             }
         };
 
-        console.log("[StreakService] Preparing Updates:", JSON.stringify(updates, null, 2));
+        Logger.log("[StreakService] Preparing Updates:", JSON.stringify(updates, null, 2));
 
         // ---------------------------------------------------------
         // NON-BLOCKING WRITES (Fire & Forget)
         // ---------------------------------------------------------
 
         // 1. Update User Profile
-        console.log("[StreakService] Dispatching User Update (Background)...");
+        Logger.log("[StreakService] Dispatching User Update (Background)...");
         setDoc(userRef, updates, { merge: true })
-            .then(() => console.log("[StreakService] User Update WRITE SUCCESS."))
-            .catch((e) => console.error("[StreakService] User Update WRITES FAILED:", e));
+            .then(() => Logger.log("[StreakService] User Update WRITE SUCCESS."))
+            .catch((e) => Logger.error("[StreakService] User Update WRITES FAILED:", e));
 
         // 2. Log Session
-        console.log("[StreakService] Dispatching Session Log (Background)...");
+        Logger.log("[StreakService] Dispatching Session Log (Background)...");
         addDoc(collection(db, 'study_sessions'), {
             userId,
             date: today,
@@ -135,8 +131,8 @@ export const StreakService = {
             subjectId: subjectId || null,
             chapterId: chapterId || null
         })
-            .then(() => console.log("[StreakService] Session Log WRITE SUCCESS."))
-            .catch((e) => console.error("[StreakService] Session Log WRITES FAILED:", e));
+            .then(() => Logger.log("[StreakService] Session Log WRITE SUCCESS."))
+            .catch((e) => Logger.error("[StreakService] Session Log WRITES FAILED:", e));
 
         // 3. Log Social Activity (Session)
         ActivityService.logActivity({
@@ -180,7 +176,7 @@ export const StreakService = {
 
         // If diffDays > 1 (e.g. 2 days gap), Streak breaks.
         if (diffDays > 1) {
-            console.log(`[StreakService] Streak BROKEN. Last study: ${lastStudy}, Today: ${today}, Diff: ${diffDays}`);
+            Logger.log(`[StreakService] Streak BROKEN. Last study: ${lastStudy}, Today: ${today}, Diff: ${diffDays}`);
             const userRef = doc(db, 'users', user.uid);
 
             // Freeze logic: Check if we should save it
@@ -190,7 +186,7 @@ export const StreakService = {
             if (user.currentStreak > 0 && !user.frozenStreak) {
                 updates.frozenStreak = user.currentStreak;
                 updates.streakBreakDate = today;
-                console.log(`[StreakService] Freezing streak of ${user.currentStreak}`);
+                Logger.log(`[StreakService] Freezing streak of ${user.currentStreak}`);
             }
 
             // If streak is already frozen, check if expired (Example: 24 hours logic handled by UI or here)
@@ -264,16 +260,16 @@ export const StreakService = {
         // Actually, we can just grab recent sessions.
 
         try {
-            console.log(`[StreakService] Fetching history for ${userId}`);
+            Logger.log(`[StreakService] Fetching history for ${userId}`);
             const q = query(
                 sessionsRef,
                 where('userId', '==', userId),
                 orderBy('date', 'desc'),
-                limit(500)
+                limit(60)
             );
 
             const snapshot = await getDocs(q);
-            console.log(`[StreakService] Found ${snapshot.size} sessions.`);
+            Logger.log(`[StreakService] Found ${snapshot.size} sessions.`);
 
 
             snapshot.forEach(doc => {
@@ -288,7 +284,7 @@ export const StreakService = {
                 }
             });
         } catch (e) {
-            console.error("Failed to fetch study history", e);
+            Logger.error("Failed to fetch study history", e);
             // Fallback for missing index: return empty
         }
 
@@ -336,11 +332,11 @@ export const StreakService = {
             const totalNeedsUpdate = Math.abs(newTotalMins - storedTotalMins) > 0.01;
 
             if (!todayNeedsUpdate && !totalNeedsUpdate) {
-                console.log("[StreakService] Sync: Everything up to date.");
+                Logger.log("[StreakService] Sync: Everything up to date.");
                 return { today: storedTodayMins, total: storedTotalMins };
             }
 
-            console.log(`[StreakService] Syncing: Today=${calculatedTodayMins} (was ${storedTodayMins}), Total=${newTotalMins} (was ${storedTotalMins})`);
+            Logger.log(`[StreakService] Syncing: Today=${calculatedTodayMins} (was ${storedTodayMins}), Total=${newTotalMins} (was ${storedTotalMins})`);
 
             // 4. Update
             await updateDoc(userRef, {
@@ -350,7 +346,7 @@ export const StreakService = {
 
             return { today: calculatedTodayMins, total: newTotalMins };
         } catch (e) {
-            console.error("[StreakService] Sync failed", e);
+            Logger.error("[StreakService] Sync failed", e);
             return { today: 0, total: 0 };
         }
     }

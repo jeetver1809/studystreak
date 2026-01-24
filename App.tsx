@@ -1,4 +1,7 @@
 import 'react-native-gesture-handler'; // MUST BE AT THE TOP
+import { enableScreens } from 'react-native-screens';
+enableScreens();
+
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';

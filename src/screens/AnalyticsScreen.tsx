@@ -12,6 +12,7 @@ import { SafePieChart } from '../components/analytics/SafePieChart';
 import { FilterComponent, FilterRange } from '../components/analytics/FilterComponent';
 import { Subject } from '../types';
 import { ScreenGradient } from '../components/ui/ScreenGradient';
+import { Skeleton } from '../components/ui/Skeleton';
 
 import { format, parseISO } from 'date-fns';
 
@@ -66,17 +67,14 @@ export const AnalyticsScreen = () => {
 
     const formatDuration = (totalSeconds: number) => {
         const h = Math.floor(totalSeconds / 3600);
-        const m = Math.floor((totalSeconds % 3600) / 60);
-        const s = Math.round(totalSeconds % 60);
+        const m = Math.round((totalSeconds % 3600) / 60);
 
         const pad = (num: number) => num.toString().padStart(2, '0');
 
         if (h > 0) {
-            return `${pad(h)}hr ${pad(m)}min ${pad(s)}sec`;
-        } else if (m > 0) {
-            return `${pad(m)}min ${pad(s)}sec`;
+            return `${pad(h)}hr ${pad(m)}min`;
         } else {
-            return `${pad(s)}sec`;
+            return `${pad(m)}min`;
         }
     };
 
@@ -147,6 +145,34 @@ export const AnalyticsScreen = () => {
         return data.sort((a, b) => b.realValue - a.realValue);
     }, [subjectStats, subjects]);
 
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <ScreenGradient />
+                <View style={styles.scrollContent}>
+                    {/* Header Skeleton */}
+                    <View style={styles.header}>
+                        <Skeleton width={150} height={32} borderRadius={8} style={{ marginBottom: 8 }} />
+                        <Skeleton width={200} height={20} borderRadius={4} />
+                    </View>
+
+                    {/* Filter Skeleton */}
+                    <Skeleton width="100%" height={50} borderRadius={12} style={{ marginBottom: 24 }} />
+
+                    {/* Stats Row Skeleton */}
+                    <View style={styles.statsRow}>
+                        <Skeleton style={{ flex: 1, height: 110, borderRadius: 16 }} />
+                        <Skeleton style={{ flex: 1, height: 110, borderRadius: 16 }} />
+                    </View>
+
+                    {/* Charts Skeleton */}
+                    <Skeleton width="100%" height={300} borderRadius={16} style={{ marginBottom: 24 }} />
+                    <Skeleton width="100%" height={300} borderRadius={16} />
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container}>
